@@ -3,10 +3,9 @@
 /**
  * OAuth 認証モジュール
  *
- * Slack OAuth 2.0 認証フローを実装
+ * Cloudflare Workers を使った OAuth 認証フロー
  */
 
-import http from "http";
 import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
@@ -16,21 +15,11 @@ import open from "open";
 // 定数
 const DATA_DIR = path.join(os.homedir(), ".slack-task-mcp");
 const CREDENTIALS_FILE = path.join(DATA_DIR, "credentials.json");
-const DEFAULT_PORT = 3000;
 const AUTH_TIMEOUT = 5 * 60 * 1000; // 5分
+const POLL_INTERVAL = 2000; // 2秒
 
-// Slack OAuth URLs
-const SLACK_AUTHORIZE_URL = "https://slack.com/oauth/v2/authorize";
-const SLACK_TOKEN_URL = "https://slack.com/api/oauth.v2.access";
-
-// 必要なスコープ
-const USER_SCOPES = [
-  "channels:history",
-  "groups:history",
-  "im:history",
-  "mpim:history",
-  "users:read",
-].join(",");
+// OAuth Worker URL
+const OAUTH_WORKER_URL = process.env.OAUTH_WORKER_URL || "https://slack-task-mcp-oauth.ignission.workers.dev";
 
 /**
  * データディレクトリを初期化
@@ -80,234 +69,107 @@ async function deleteCredentials() {
 }
 
 /**
- * 環境変数から Client ID/Secret を取得
+ * セッション ID を生成
  */
-function getClientCredentials() {
-  const clientId = process.env.SLACK_CLIENT_ID;
-  const clientSecret = process.env.SLACK_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    return null;
-  }
-
-  return { clientId, clientSecret };
+function generateSessionId() {
+  return crypto.randomBytes(16).toString("hex");
 }
 
 /**
- * OAuth 認可 URL を生成
+ * Worker にポーリングしてトークンを取得
  */
-function generateAuthUrl(clientId, redirectUri, state) {
-  const params = new URLSearchParams({
-    client_id: clientId,
-    user_scope: USER_SCOPES,
-    redirect_uri: redirectUri,
-    state: state,
-  });
+async function pollForToken(sessionId) {
+  const pollUrl = `${OAUTH_WORKER_URL}/poll?session_id=${sessionId}`;
 
-  return `${SLACK_AUTHORIZE_URL}?${params.toString()}`;
-}
-
-/**
- * 認可コードをアクセストークンに交換
- */
-async function exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
-  const params = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    code: code,
-    redirect_uri: redirectUri,
-  });
-
-  const response = await fetch(SLACK_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: params.toString(),
-  });
-
+  const response = await fetch(pollUrl);
   const data = await response.json();
-
-  if (!data.ok) {
-    throw new Error(`Slack API error: ${data.error}`);
-  }
 
   return data;
 }
 
 /**
  * OAuth 認証フローを実行
+ * Cloudflare Workers を使用
  */
 export async function authenticate(options = {}) {
-  const port = options.port || DEFAULT_PORT;
   const noBrowser = options.noBrowser || false;
 
-  // Client ID/Secret を確認
-  const clientCreds = getClientCredentials();
-  if (!clientCreds) {
-    console.error("❌ SLACK_CLIENT_ID と SLACK_CLIENT_SECRET を環境変数に設定してください");
-    console.error("");
-    console.error("設定方法:");
-    console.error("  export SLACK_CLIENT_ID=your-client-id");
-    console.error("  export SLACK_CLIENT_SECRET=your-client-secret");
-    console.error("");
-    console.error("Slack App の作成手順は specs/003-oauth-auth/quickstart.md を参照してください");
-    return false;
+  // セッション ID を生成
+  const sessionId = generateSessionId();
+
+  // Worker の認証 URL を生成
+  const authUrl = `${OAUTH_WORKER_URL}/auth?session_id=${sessionId}`;
+
+  console.log("🔐 Slack OAuth 認証を開始します...");
+  console.log("");
+
+  if (noBrowser) {
+    console.log("以下の URL をブラウザで開いてください:");
+    console.log("");
+    console.log(authUrl);
+  } else {
+    console.log("ブラウザで Slack ログイン画面を開いています...");
+    try {
+      await open(authUrl);
+    } catch (err) {
+      console.log("");
+      console.log("ブラウザを自動で開けませんでした。以下の URL を手動で開いてください:");
+      console.log("");
+      console.log(authUrl);
+    }
   }
 
-  const { clientId, clientSecret } = clientCreds;
-  const redirectUri = `http://localhost:${port}/callback`;
-  const state = crypto.randomBytes(16).toString("hex");
+  console.log("");
+  console.log("認証が完了するまで待機中...");
 
-  return new Promise((resolve) => {
-    let server;
-    let timeoutId;
+  // ポーリング開始
+  const startTime = Date.now();
 
-    // タイムアウト設定
-    timeoutId = setTimeout(() => {
-      console.error("\n❌ 認証がタイムアウトしました（5分）");
-      server?.close();
-      resolve(false);
-    }, AUTH_TIMEOUT);
+  while (Date.now() - startTime < AUTH_TIMEOUT) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
 
-    // ローカルサーバー起動
-    server = http.createServer(async (req, res) => {
-      const url = new URL(req.url, `http://localhost:${port}`);
+    try {
+      const result = await pollForToken(sessionId);
 
-      if (url.pathname === "/callback") {
-        const code = url.searchParams.get("code");
-        const returnedState = url.searchParams.get("state");
-        const error = url.searchParams.get("error");
+      if (result.status === "success") {
+        // credentials を保存
+        const credentials = {
+          access_token: result.access_token,
+          token_type: result.token_type,
+          scope: result.scope,
+          user_id: result.user_id,
+          team_id: result.team_id,
+          team_name: result.team_name,
+          created_at: result.created_at,
+        };
 
-        // エラーチェック
-        if (error) {
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-          res.end(`
-            <html>
-              <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-                <h1>❌ 認証がキャンセルされました</h1>
-                <p>このウィンドウを閉じてください。</p>
-              </body>
-            </html>
-          `);
-          clearTimeout(timeoutId);
-          server.close();
-          resolve(false);
-          return;
-        }
+        await saveCredentials(credentials);
 
-        // state 検証
-        if (returnedState !== state) {
-          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
-          res.end(`
-            <html>
-              <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-                <h1>❌ セキュリティエラー</h1>
-                <p>state パラメータが一致しません。再度認証を試みてください。</p>
-              </body>
-            </html>
-          `);
-          clearTimeout(timeoutId);
-          server.close();
-          resolve(false);
-          return;
-        }
-
-        try {
-          // トークン交換
-          const tokenData = await exchangeCodeForToken(code, clientId, clientSecret, redirectUri);
-
-          // credentials を保存
-          const credentials = {
-            access_token: tokenData.authed_user.access_token,
-            token_type: "user",
-            scope: tokenData.authed_user.scope,
-            user_id: tokenData.authed_user.id,
-            team_id: tokenData.team.id,
-            team_name: tokenData.team.name,
-            created_at: new Date().toISOString(),
-          };
-
-          await saveCredentials(credentials);
-
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-          res.end(`
-            <html>
-              <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-                <h1>✅ 認証が完了しました！</h1>
-                <p>ワークスペース: ${credentials.team_name}</p>
-                <p>このウィンドウを閉じて、ターミナルに戻ってください。</p>
-              </body>
-            </html>
-          `);
-
-          console.log("");
-          console.log("✅ 認証が完了しました！");
-          console.log(`   ワークスペース: ${credentials.team_name}`);
-          console.log(`   トークンは ${CREDENTIALS_FILE} に保存されました`);
-
-          clearTimeout(timeoutId);
-          server.close();
-          resolve(true);
-
-        } catch (err) {
-          res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
-          res.end(`
-            <html>
-              <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-                <h1>❌ エラーが発生しました</h1>
-                <p>${err.message}</p>
-              </body>
-            </html>
-          `);
-          console.error(`\n❌ トークン交換エラー: ${err.message}`);
-          clearTimeout(timeoutId);
-          server.close();
-          resolve(false);
-        }
-      } else {
-        res.writeHead(404);
-        res.end("Not Found");
-      }
-    });
-
-    server.on("error", (err) => {
-      if (err.code === "EADDRINUSE") {
-        console.error(`❌ ポート ${port} は使用中です。--port オプションで別のポートを指定してください`);
-      } else {
-        console.error(`❌ サーバーエラー: ${err.message}`);
-      }
-      clearTimeout(timeoutId);
-      resolve(false);
-    });
-
-    server.listen(port, async () => {
-      const authUrl = generateAuthUrl(clientId, redirectUri, state);
-
-      console.log("🔐 Slack OAuth 認証を開始します...");
-      console.log("");
-
-      if (noBrowser) {
-        console.log("以下の URL をブラウザで開いてください:");
         console.log("");
-        console.log(authUrl);
-        console.log("");
-        console.log("認証が完了するまで待機中...");
-      } else {
-        console.log("ブラウザで Slack ログイン画面を開いています...");
-        try {
-          await open(authUrl);
-        } catch (err) {
-          console.log("");
-          console.log("ブラウザを自動で開けませんでした。以下の URL を手動で開いてください:");
-          console.log("");
-          console.log(authUrl);
-        }
-        console.log("");
-        console.log("認証が完了するまで待機中...");
+        console.log("✅ 認証が完了しました！");
+        console.log(`   ワークスペース: ${credentials.team_name}`);
+        console.log(`   トークンは ${CREDENTIALS_FILE} に保存されました`);
+
+        return true;
       }
-    });
-  });
+
+      if (result.status === "error") {
+        console.error("");
+        console.error(`❌ 認証エラー: ${result.error}`);
+        return false;
+      }
+
+      // pending の場合は継続
+      process.stdout.write(".");
+    } catch (err) {
+      // ネットワークエラーは無視して継続
+      process.stdout.write("x");
+    }
+  }
+
+  console.error("");
+  console.error("❌ 認証がタイムアウトしました（5分）");
+  return false;
 }
 
 /**

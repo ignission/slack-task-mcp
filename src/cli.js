@@ -17,10 +17,7 @@ const subCommand = args[1];
 function parseOptions(args) {
   const options = {};
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--port" && args[i + 1]) {
-      options.port = parseInt(args[i + 1], 10);
-      i++;
-    } else if (args[i] === "--no-browser") {
+    if (args[i] === "--no-browser") {
       options.noBrowser = true;
     }
   }
@@ -42,7 +39,6 @@ Commands:
   (なし)            MCP サーバーとして起動
 
 Options:
-  --port <number>   コールバックサーバーのポート (default: 3000)
   --no-browser      ブラウザを自動で開かない
   --help, -h        ヘルプを表示
 
@@ -50,7 +46,6 @@ Examples:
   npx slack-task-mcp auth
   npx slack-task-mcp auth status
   npx slack-task-mcp auth logout
-  npx slack-task-mcp auth --port 3001
   npx slack-task-mcp auth --no-browser
 `);
 }
