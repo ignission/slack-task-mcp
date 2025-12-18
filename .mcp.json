@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "slack-task": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "/Users/01045822/Downloads/slack-task-mcp-dist",
+      "env": {
+        "SLACK_USER_TOKEN": "${SLACK_USER_TOKEN}"
+      }
+    }
+  }
+}
