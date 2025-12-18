@@ -247,3 +247,10 @@ Claude:
 - Slack User Token (xoxp-...) が環境変数 `SLACK_USER_TOKEN` に設定されている必要があります
 - User Tokenを使用するため、Botをチャンネルに追加する必要はありません
 - プライベートチャンネルも、あなたが参加していれば読み取り可能です
+
+## Active Technologies
+- Node.js (ES Modules) + @modelcontextprotocol/sdk, zod (001-analyze-request)
+- ローカルファイル (`~/.slack-task-mcp/tasks.json`) (001-analyze-request)
+
+## Recent Changes
+- 001-analyze-request: Added Node.js (ES Modules) + @modelcontextprotocol/sdk, zod
