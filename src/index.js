@@ -15,6 +15,7 @@ import { z } from "zod";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { loadCredentials } from "./auth.js";
 
 // データ保存先
 const DATA_DIR = path.join(os.homedir(), ".slack-task-mcp");
@@ -610,16 +611,30 @@ server.tool(
 
 // サーバー起動
 async function main() {
-  // Slack User Tokenを環境変数から取得
-  const token = process.env.SLACK_USER_TOKEN;
+  // Slack User Token を取得（優先順位: credentials.json > 環境変数）
+  let token = null;
+
+  // 1. credentials.json を優先
+  const credentials = await loadCredentials();
+  if (credentials?.access_token) {
+    token = credentials.access_token;
+  }
+
+  // 2. 環境変数（レガシー）
+  if (!token && process.env.SLACK_USER_TOKEN) {
+    token = process.env.SLACK_USER_TOKEN;
+  }
+
   if (token) {
     slackClient = new WebClient(token);
   } else {
-    console.error("Warning: SLACK_USER_TOKEN not set. Slack features will not work.");
+    console.error("Warning: Slack認証されていません。");
+    console.error("  `npx slack-task-mcp auth` を実行して認証するか、");
+    console.error("  SLACK_USER_TOKEN 環境変数を設定してください。");
   }
-  
+
   await initDataDir();
-  
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
