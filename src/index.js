@@ -48,6 +48,34 @@ const AnalysisResultSchema = z.object({
   priority: PrioritySchema.describe("優先度"),
 });
 
+// ============================================
+// draft_reply 用 Zodスキーマ
+// ============================================
+
+const TaskTypeSchema = z.enum(["report", "confirm", "request"]);
+const ToneSchema = z.enum(["formal", "casual"]);
+const ChangeTypeSchema = z.enum(["structure", "simplify", "clarify", "tone", "logic", "add"]);
+
+const ChangeSchema = z.object({
+  type: ChangeTypeSchema.describe("変更の種類"),
+  description: z.string().max(200).describe("変更内容の説明"),
+  reason: z.string().max(200).describe("変更の理由"),
+});
+
+const ReplyStructureSchema = z.object({
+  conclusion: z.string().max(500).describe("結論（何を伝えたいか）"),
+  reasoning: z.string().nullable().optional().describe("根拠（なぜそう言えるか）"),
+  action: z.string().nullable().optional().describe("アクション"),
+});
+
+const EditedReplySchema = z.object({
+  task_type: TaskTypeSchema.describe("タスクタイプ"),
+  after: z.string().describe("添削後のテキスト"),
+  structure: ReplyStructureSchema.describe("構造化された返信"),
+  changes: z.array(ChangeSchema).describe("変更ポイント"),
+  tone: ToneSchema.describe("適用されたトーン"),
+});
+
 // Slack クライアント（User Token使用）
 let slackClient = null;
 
@@ -448,6 +476,132 @@ server.tool(
         content: [{
           type: "text",
           text: `❌ 分析結果の処理中にエラーが発生しました: ${err.message}`,
+        }],
+      };
+    }
+  }
+);
+
+// ============================================
+// ツール: 返信を添削
+// ============================================
+
+/**
+ * タスクタイプをラベルに変換
+ */
+function formatTaskType(taskType) {
+  const map = {
+    report: "📝 報告",
+    confirm: "❓ 確認",
+    request: "🙏 依頼",
+  };
+  return map[taskType] || taskType;
+}
+
+/**
+ * トーンをラベルに変換
+ */
+function formatTone(tone) {
+  const map = {
+    formal: "丁寧",
+    casual: "カジュアル",
+  };
+  return map[tone] || tone;
+}
+
+/**
+ * 変更タイプをラベルに変換
+ */
+function formatChangeType(changeType) {
+  const map = {
+    structure: "構造化",
+    simplify: "簡潔化",
+    clarify: "明確化",
+    tone: "トーン調整",
+    logic: "論理補強",
+    add: "追加",
+  };
+  return map[changeType] || changeType;
+}
+
+/**
+ * 添削結果をMarkdown形式にフォーマット
+ */
+function formatEditedReply(draftText, editedReply) {
+  const lines = [];
+
+  // ヘッダー
+  lines.push("## 添削結果\n");
+
+  // タイプとトーン
+  lines.push(`**タイプ**: ${formatTaskType(editedReply.task_type)} | **トーン**: ${formatTone(editedReply.tone)}`);
+  lines.push("");
+
+  // Before
+  lines.push("### Before");
+  lines.push(`「${draftText}」`);
+  lines.push("");
+
+  // After
+  lines.push("### After");
+  lines.push(`「${editedReply.after}」`);
+  lines.push("");
+
+  // 構造
+  lines.push("### 構造");
+  lines.push(`- **結論**: ${editedReply.structure.conclusion}`);
+  if (editedReply.structure.reasoning) {
+    lines.push(`- **根拠**: ${editedReply.structure.reasoning}`);
+  }
+  if (editedReply.structure.action) {
+    lines.push(`- **アクション**: ${editedReply.structure.action}`);
+  }
+  lines.push("");
+
+  // 変更ポイント
+  if (editedReply.changes && editedReply.changes.length > 0) {
+    lines.push("### 変更ポイント");
+    editedReply.changes.forEach((change, index) => {
+      lines.push(`${index + 1}. **${formatChangeType(change.type)}**: ${change.description}`);
+      lines.push(`   - 理由: ${change.reason}`);
+    });
+    lines.push("");
+  }
+
+  // コピー用
+  lines.push("---");
+  lines.push("📋 **コピー用**");
+  lines.push(editedReply.after);
+
+  return lines.join("\n");
+}
+
+server.tool(
+  "draft_reply",
+  "返信の下書きを添削し、結論→根拠→アクションの構造に整理して返す",
+  {
+    draft_text: z.string().max(2000).describe("添削対象の下書きテキスト"),
+    task_type: TaskTypeSchema.optional().describe("タスクタイプ（省略時は自動判定）"),
+    tone: ToneSchema.optional().describe("トーン（デフォルト: formal）"),
+    thread_content: z.string().optional().describe("文脈用のスレッド内容"),
+    edited_reply: EditedReplySchema.describe("Claudeが生成した添削結果"),
+  },
+  async ({ draft_text, task_type, tone, thread_content, edited_reply }) => {
+    try {
+      // 添削結果をフォーマット
+      const formatted = formatEditedReply(draft_text, edited_reply);
+
+      return {
+        content: [{
+          type: "text",
+          text: formatted,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ 添削結果の処理中にエラーが発生しました: ${err.message}`,
         }],
       };
     }

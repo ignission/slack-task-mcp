@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "draft_reply MCP Tool Schema",
+  "description": "返信の下書きを添削し、ロジカルに構造化するMCPツール",
+
+  "tool": {
+    "name": "draft_reply",
+    "description": "返信の下書きを添削し、結論→根拠→アクションの構造に整理して返す",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "draft_text": {
+          "type": "string",
+          "description": "添削対象の下書きテキスト",
+          "maxLength": 2000
+        },
+        "task_type": {
+          "$ref": "#/definitions/TaskType",
+          "description": "タスクタイプ（省略時はClaudeが自動判定）"
+        },
+        "tone": {
+          "$ref": "#/definitions/Tone",
+          "description": "トーン（デフォルト: formal）"
+        },
+        "thread_content": {
+          "type": "string",
+          "description": "文脈用のスレッド内容（オプション）"
+        },
+        "edited_reply": {
+          "$ref": "#/definitions/EditedReply",
+          "description": "Claudeが生成した添削結果"
+        }
+      },
+      "required": ["draft_text", "edited_reply"]
+    }
+  },
+
+  "definitions": {
+    "EditedReply": {
+      "type": "object",
+      "properties": {
+        "task_type": {
+          "$ref": "#/definitions/TaskType",
+          "description": "判定されたタスクタイプ"
+        },
+        "after": {
+          "type": "string",
+          "description": "添削後のテキスト"
+        },
+        "structure": {
+          "$ref": "#/definitions/ReplyStructure",
+          "description": "構造化された返信"
+        },
+        "changes": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Change" },
+          "description": "変更ポイントのリスト"
+        },
+        "tone": {
+          "$ref": "#/definitions/Tone",
+          "description": "適用されたトーン"
+        }
+      },
+      "required": ["task_type", "after", "structure", "changes", "tone"]
+    },
+
+    "ReplyStructure": {
+      "type": "object",
+      "properties": {
+        "conclusion": {
+          "type": "string",
+          "description": "結論（何を伝えたいか）",
+          "maxLength": 500
+        },
+        "reasoning": {
+          "type": ["string", "null"],
+          "description": "根拠（なぜそう言えるか）",
+          "maxLength": 500
+        },
+        "action": {
+          "type": ["string", "null"],
+          "description": "アクション（何をしてほしいか/自分が何をするか）",
+          "maxLength": 300
+        }
+      },
+      "required": ["conclusion"]
+    },
+
+    "Change": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/ChangeType",
+          "description": "変更の種類"
+        },
+        "description": {
+          "type": "string",
+          "description": "変更内容の説明",
+          "maxLength": 200
+        },
+        "reason": {
+          "type": "string",
+          "description": "変更の理由",
+          "maxLength": 200
+        }
+      },
+      "required": ["type", "description", "reason"]
+    },
+
+    "TaskType": {
+      "type": "string",
+      "enum": ["report", "confirm", "request"],
+      "description": "タスクタイプ（report: 報告, confirm: 確認, request: 依頼）"
+    },
+
+    "Tone": {
+      "type": "string",
+      "enum": ["formal", "casual"],
+      "description": "トーン（formal: 丁寧, casual: カジュアル）"
+    },
+
+    "ChangeType": {
+      "type": "string",
+      "enum": ["structure", "simplify", "clarify", "tone", "logic", "add"],
+      "description": "変更種類"
+    }
+  },
+
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "処理成功フラグ"
+      },
+      "message": {
+        "type": "string",
+        "description": "処理結果メッセージ"
+      },
+      "edited_reply": {
+        "$ref": "#/definitions/EditedReply",
+        "description": "添削結果"
+      }
+    },
+    "required": ["success", "message"]
+  }
+}
