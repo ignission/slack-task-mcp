@@ -20,6 +20,34 @@ import os from "os";
 const DATA_DIR = path.join(os.homedir(), ".slack-task-mcp");
 const TASKS_FILE = path.join(DATA_DIR, "tasks.json");
 
+// ============================================
+// analyze_request 用 Zodスキーマ
+// ============================================
+
+const UnclearPointSchema = z.object({
+  question: z.string().max(200).describe("確認すべき質問"),
+  impact: z.string().max(200).describe("この点が不明だと何が困るか"),
+  suggested_options: z.array(z.string()).optional().describe("想定される選択肢"),
+});
+
+const NextActionSchema = z.object({
+  action: z.string().max(200).describe("具体的なアクション内容"),
+  estimated_time: z.number().min(1).max(30).describe("推定所要時間（分）"),
+  reason: z.string().nullable().optional().describe("なぜこれが最初のアクションなのか"),
+});
+
+const PrioritySchema = z.enum(["high", "medium", "low"]);
+
+const AnalysisResultSchema = z.object({
+  purpose: z.string().max(500).describe("依頼の目的（1文で言語化）"),
+  deliverable: z.string().nullable().optional().describe("成果物"),
+  deadline: z.string().nullable().optional().describe("期限"),
+  unclear_points: z.array(UnclearPointSchema).describe("不明点のリスト"),
+  confirmation_message: z.string().nullable().optional().describe("確認メッセージ案"),
+  next_action: NextActionSchema.describe("ネクストアクション"),
+  priority: PrioritySchema.describe("優先度"),
+});
+
 // Slack クライアント（User Token使用）
 let slackClient = null;
 
@@ -321,6 +349,108 @@ server.tool(
     return {
       content: [{ type: "text", text: responseText }],
     };
+  }
+);
+
+// ============================================
+// ツール: 依頼を分析
+// ============================================
+
+/**
+ * 優先度をアイコン付きラベルに変換
+ */
+function formatPriority(priority) {
+  const map = {
+    high: "🔴 高（他の人をブロック/期限近い）",
+    medium: "🟡 中（今日〜今週中）",
+    low: "🟢 低（いつでもいい）",
+  };
+  return map[priority] || priority;
+}
+
+/**
+ * 分析結果をMarkdown形式にフォーマット
+ */
+function formatAnalysisResult(analysis) {
+  const lines = [];
+
+  // ヘッダー
+  lines.push("## 依頼の分析\n");
+
+  // 把握した内容
+  lines.push("### 把握した内容");
+  lines.push(`- **目的**: ${analysis.purpose}`);
+  if (analysis.deliverable) {
+    lines.push(`- **成果物**: ${analysis.deliverable}`);
+  }
+  if (analysis.deadline) {
+    lines.push(`- **期限**: ${analysis.deadline}`);
+  }
+  lines.push(`- **優先度**: ${formatPriority(analysis.priority)}`);
+  lines.push("");
+
+  // 不明点
+  if (analysis.unclear_points && analysis.unclear_points.length > 0) {
+    lines.push("### 不明点");
+    for (const point of analysis.unclear_points) {
+      lines.push(`- ❓ **${point.question}**`);
+      lines.push(`  - 影響: ${point.impact}`);
+      if (point.suggested_options && point.suggested_options.length > 0) {
+        lines.push(`  - 選択肢: ${point.suggested_options.join(" / ")}`);
+      }
+    }
+    lines.push("");
+  } else {
+    lines.push("### 不明点");
+    lines.push("なし（依頼内容は明確です）");
+    lines.push("");
+  }
+
+  // 確認メッセージ案
+  if (analysis.confirmation_message) {
+    lines.push("### 確認メッセージ案");
+    lines.push(`「${analysis.confirmation_message}」`);
+    lines.push("");
+  }
+
+  // ネクストアクション
+  lines.push("### ネクストアクション");
+  const na = analysis.next_action;
+  lines.push(`📌 **${na.action}（${na.estimated_time}分）**`);
+  if (na.reason) {
+    lines.push(`   理由: ${na.reason}`);
+  }
+
+  return lines.join("\n");
+}
+
+server.tool(
+  "analyze_request",
+  "Slackスレッドの依頼を分析し、目的・不明点・確認メッセージ案・ネクストアクションを構造化して返す",
+  {
+    thread_content: z.string().describe("分析対象のSlackスレッド内容（get_slack_threadの出力）"),
+    thread_url: z.string().optional().describe("SlackスレッドのURL（参照用）"),
+    analysis: AnalysisResultSchema.describe("Claudeが生成した分析結果"),
+  },
+  async ({ thread_content, thread_url, analysis }) => {
+    try {
+      // 分析結果をフォーマット
+      const formatted = formatAnalysisResult(analysis);
+
+      return {
+        content: [{
+          type: "text",
+          text: formatted,
+        }],
+      };
+    } catch (err) {
+      return {
+        content: [{
+          type: "text",
+          text: `❌ 分析結果の処理中にエラーが発生しました: ${err.message}`,
+        }],
+      };
+    }
   }
 );
 
