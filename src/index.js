@@ -296,24 +296,116 @@ server.tool(
       };
     }
     
-    const activeTasks = data.tasks.filter(t => t.status !== "done");
-    
+    const activeTasks = data.tasks.filter(t => t.status === "active");
+
+    if (activeTasks.length === 0) {
+      const archivedCount = data.tasks.filter(t => t.status === "archived").length;
+      const message = archivedCount > 0
+        ? `📋 アクティブなタスクはありません（アーカイブ: ${archivedCount}件）\n\n💡 過去のタスクは search_tasks で検索できます`
+        : "📋 タスクはありません";
+      return {
+        content: [{ type: "text", text: message }],
+      };
+    }
+
     const text = activeTasks.map(task => {
       const completedSteps = task.steps.filter(s => s.status === "done").length;
       const totalSteps = task.steps.length;
       const progress = totalSteps > 0 ? Math.round(completedSteps / totalSteps * 100) : 0;
-      
+
       const stepsText = task.steps.map(s => {
         const checkbox = s.status === "done" ? "☑️" : "☐";
         const stepText = s.status === "done" ? `~~${s.text}~~` : s.text;
         return `  ${checkbox} ${s.order}. ${stepText} (${s.estimate_min}分)`;
       }).join("\n");
-      
-      return `### ${task.title}\n進捗: ${completedSteps}/${totalSteps} (${progress}%)\n\n${stepsText}`;
+
+      const sourceUrlText = task.source_url ? `\n📎 元スレッド: ${task.source_url}` : "";
+
+      return `### ${task.title}\n進捗: ${completedSteps}/${totalSteps} (${progress}%)${sourceUrlText}\n\n${stepsText}`;
     }).join("\n\n---\n\n");
     
     return {
       content: [{ type: "text", text: `## 📋 タスク一覧 (${activeTasks.length}件)\n\n${text}` }],
+    };
+  }
+);
+
+// ツール: タスクを検索（アーカイブ含む）
+server.tool(
+  "search_tasks",
+  "キーワードや日付でタスクを検索します（アーカイブ済みタスクも含む）",
+  {
+    keyword: z.string().optional().describe("検索キーワード（タイトル・目的・ステップ内容を検索）"),
+    status: z.enum(["all", "active", "archived"]).optional().describe("ステータスでフィルタ（デフォルト: all）"),
+    days: z.number().optional().describe("過去N日以内に作成/完了したタスク"),
+  },
+  async ({ keyword, status = "all", days }) => {
+    await initDataDir();
+    const data = await loadTasks();
+
+    if (data.tasks.length === 0) {
+      return {
+        content: [{ type: "text", text: "📋 タスクはありません" }],
+      };
+    }
+
+    let results = data.tasks;
+
+    // ステータスフィルタ
+    if (status !== "all") {
+      results = results.filter(t => t.status === status);
+    }
+
+    // 日付フィルタ
+    if (days) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      results = results.filter(t => {
+        const taskDate = new Date(t.completed_at || t.created_at);
+        return taskDate >= cutoff;
+      });
+    }
+
+    // キーワード検索
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase();
+      results = results.filter(t => {
+        const searchText = [
+          t.title,
+          t.purpose,
+          ...t.steps.map(s => s.text),
+        ].join(" ").toLowerCase();
+        return searchText.includes(lowerKeyword);
+      });
+    }
+
+    if (results.length === 0) {
+      return {
+        content: [{ type: "text", text: "🔍 条件に一致するタスクはありません" }],
+      };
+    }
+
+    // 新しい順にソート
+    results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const text = results.map(task => {
+      const statusIcon = task.status === "active" ? "🔵" : "📦";
+      const dateStr = task.completed_at
+        ? `完了: ${new Date(task.completed_at).toLocaleDateString("ja-JP")}`
+        : `作成: ${new Date(task.created_at).toLocaleDateString("ja-JP")}`;
+
+      const stepsText = task.steps.map(s => {
+        const checkbox = s.status === "done" ? "☑️" : "☐";
+        return `  ${checkbox} ${s.order}. ${s.text}`;
+      }).join("\n");
+
+      const sourceUrlText = task.source_url ? `\n📎 ${task.source_url}` : "";
+
+      return `### ${statusIcon} ${task.title}\n${dateStr}${sourceUrlText}\n\n${stepsText}`;
+    }).join("\n\n---\n\n");
+
+    return {
+      content: [{ type: "text", text: `## 🔍 検索結果 (${results.length}件)\n\n${text}` }],
     };
   }
 );
@@ -355,10 +447,10 @@ server.tool(
     step.status = "done";
     step.completed_at = new Date().toISOString();
     
-    // 全ステップ完了ならタスクも完了
+    // 全ステップ完了ならタスクをアーカイブ
     const allDone = task.steps.every(s => s.status === "done");
     if (allDone) {
-      task.status = "done";
+      task.status = "archived";
       task.completed_at = new Date().toISOString();
     }
     
@@ -370,7 +462,7 @@ server.tool(
     let responseText = `✅ ステップ ${step_number} を完了しました！\n\n~~${step.text}~~`;
     
     if (allDone) {
-      responseText += "\n\n🎉 タスク「" + task.title + "」を全て完了しました！";
+      responseText += "\n\n🎉 タスク「" + task.title + "」を全て完了しました！（アーカイブ済み）";
     } else if (nextStep) {
       responseText += `\n\n📌 次のステップ: ${nextStep.order}. ${nextStep.text} (${nextStep.estimate_min}分)`;
     }
