@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/slack-search/requirements.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-12-22T11:26:19.528Z",
+      "trigger": "initial",
+      "approvalId": "approval_1766402779520_r1cpwqeuu",
+      "approvalTitle": "Slack検索機能の要件定義"
+    }
+  ]
+}

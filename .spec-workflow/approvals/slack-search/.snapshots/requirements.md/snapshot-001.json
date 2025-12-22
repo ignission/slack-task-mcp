@@ -1,0 +1,16 @@
+{
+  "id": "snapshot_1766402779528_09zqf48za",
+  "approvalId": "approval_1766402779520_r1cpwqeuu",
+  "approvalTitle": "Slack検索機能の要件定義",
+  "version": 1,
+  "timestamp": "2025-12-22T11:26:19.528Z",
+  "trigger": "initial",
+  "status": "pending",
+  "content": "# Requirements Document: Slack Search\n\n## Introduction\n\nSlack内のメッセージを検索する `search_slack` ツールを追加します。\n\nADHDユーザーが「あの話どうなったっけ」と思ったときに、Slackを開かずにClaudeに聞くだけで過去のやり取りを素早く見つけられるようにします。これにより、ワーキングメモリの負担を軽減し、コンテキストスイッチを減らします。\n\n## Alignment with Product Vision\n\n**解決する課題**: メンションがたまると、どこから手を付けていいか迷う\n\nこのSlack検索機能は以下のワークフローを強化します：\n- 過去の類似依頼を検索して対応方法を参考にできる\n- スレッドURLがなくても「〇〇さんとの会話」「△△の件」で検索できる\n- タスクの文脈を思い出すためにSlackを開く必要がなくなる\n\n## Requirements\n\n### Requirement 1: キーワードでSlackメッセージを検索\n\n**User Story:** ADHDユーザーとして、キーワードでSlackのメッセージを検索したい。Slackを開いて探し回る手間を省き、集中を途切れさせないため。\n\n#### Acceptance Criteria\n\n1. WHEN ユーザーがキーワードを指定 THEN システム SHALL Slack search.messages APIを呼び出して結果を返す\n2. IF 検索結果が0件 THEN システム SHALL 「該当するメッセージはありません」と表示する\n3. WHEN 検索結果がある THEN システム SHALL 各メッセージの発言者・日時・内容・スレッドURLを表示する\n\n### Requirement 2: 検索結果の件数制限\n\n**User Story:** ADHDユーザーとして、検索結果が多すぎて圧倒されたくない。最も関連性の高い結果だけを見たい。\n\n#### Acceptance Criteria\n\n1. WHEN 検索実行 THEN システム SHALL デフォルトで最大10件の結果を返す\n2. IF ユーザーが件数を指定 THEN システム SHALL 指定された件数（1〜100）を返す\n3. WHEN 結果が制限を超える THEN システム SHALL 「他にN件の結果があります」と表示する\n\n### Requirement 3: チャンネル/DMでの絞り込み\n\n**User Story:** ADHDユーザーとして、特定のチャンネルやDMに絞って検索したい。ノイズを減らして目的の情報に早く辿り着くため。\n\n#### Acceptance Criteria\n\n1. IF ユーザーがチャンネル名を指定 THEN システム SHALL そのチャンネル内のみ検索する\n2. WHEN チャンネル指定なし THEN システム SHALL ユーザーがアクセス可能な全チャンネル/DMを検索する\n\n### Requirement 4: 検索結果からスレッド取得への連携\n\n**User Story:** ADHDユーザーとして、検索で見つけたメッセージのスレッド全体を読みたい。文脈を理解してタスクを進めるため。\n\n#### Acceptance Criteria\n\n1. WHEN 検索結果を表示 THEN システム SHALL 各メッセージにスレッドURL（permalink）を含める\n2. IF ユーザーがスレッドURLを指定 THEN システム SHALL 既存の get_slack_thread ツールでスレッド全体を取得できる\n\n## Non-Functional Requirements\n\n### Code Architecture and Modularity\n- **Single Responsibility Principle**: search_slack ツールは検索のみを担当\n- **Modular Design**: 既存のSlackClient初期化ロジックを再利用\n- **Clear Interfaces**: 検索パラメータと結果のスキーマを明確に定義\n\n### Performance\n- Slack APIのレート制限（Tier 2: 20回/分）を考慮\n- 検索結果のページネーションは初回リリースでは対応しない（件数制限で対応）\n\n### Security\n- User Token のスコープに `search:read` が必要\n- 検索結果はユーザーがアクセス可能なメッセージのみ\n\n### Reliability\n- Slack API エラー時は適切なエラーメッセージを返す\n- トークン未設定時は認証手順を案内\n\n### Usability\n- 検索クエリはSlackの検索構文をそのまま使用可能（`from:@user`, `in:#channel` など）\n- 結果は新しい順にソート\n",
+  "fileStats": {
+    "size": 4141,
+    "lines": 80,
+    "lastModified": "2025-12-22T11:26:12.692Z"
+  },
+  "comments": []
+}
