@@ -77,6 +77,16 @@ const EditedReplySchema = z.object({
   tone: ToneSchema.describe("適用されたトーン"),
 });
 
+// ============================================
+// search_slack 用 Zodスキーマ
+// ============================================
+
+const SearchParamsSchema = z.object({
+  query: z.string().min(1).describe("検索クエリ（Slack検索構文対応: from:@user, in:#channel等）"),
+  count: z.number().min(1).max(100).optional().describe("最大件数（デフォルト10）"),
+  channel: z.string().optional().describe("チャンネル名で絞り込み（#なし）"),
+});
+
 // Slack クライアント（User Token使用）
 let slackClient = null;
 
@@ -134,24 +144,37 @@ function parseSlackUrl(url) {
 }
 
 /**
- * スレッドのメッセージを取得
+ * スレッドのメッセージを取得（ページネーション対応）
  */
 async function getThreadMessages(channel, threadTs) {
   if (!slackClient) {
     throw new Error("Slack client not initialized. Set SLACK_USER_TOKEN environment variable.");
   }
-  
-  const result = await slackClient.conversations.replies({
-    channel,
-    ts: threadTs,
-    limit: 100,
-  });
-  
-  if (!result.ok) {
-    throw new Error(`Slack API error: ${result.error}`);
-  }
-  
-  return result.messages || [];
+
+  const allMessages = [];
+  let cursor = undefined;
+
+  // ページネーションで全メッセージを取得
+  do {
+    const result = await slackClient.conversations.replies({
+      channel,
+      ts: threadTs,
+      limit: 200,
+      cursor,
+    });
+
+    if (!result.ok) {
+      throw new Error(`Slack API error: ${result.error}`);
+    }
+
+    if (result.messages) {
+      allMessages.push(...result.messages);
+    }
+
+    cursor = result.response_metadata?.next_cursor;
+  } while (cursor);
+
+  return allMessages;
 }
 
 /**
@@ -166,6 +189,90 @@ async function getUserInfo(userId) {
   } catch {
     return { name: userId, real_name: userId };
   }
+}
+
+/**
+ * Slackメッセージを検索
+ */
+async function searchSlackMessages(query, count = 10) {
+  if (!slackClient) {
+    throw new Error("Slack client not initialized");
+  }
+
+  const result = await slackClient.search.messages({
+    query: query,
+    count: count,
+    sort: "timestamp",
+    sort_dir: "desc",
+  });
+
+  if (!result.ok) {
+    throw new Error(`Slack API error: ${result.error}`);
+  }
+
+  return {
+    messages: result.messages?.matches || [],
+    total: result.messages?.total || 0,
+  };
+}
+
+/**
+ * 検索結果をMarkdown形式にフォーマット
+ */
+async function formatSearchResults(messages, total, requestedCount) {
+  if (messages.length === 0) {
+    return "🔍 該当するメッセージはありません";
+  }
+
+  const userCache = {};
+  const lines = [];
+
+  // ヘッダー
+  const remaining = total - messages.length;
+  if (remaining > 0) {
+    lines.push(`## 🔍 検索結果 (${messages.length}件 / 全${total}件)\n`);
+  } else {
+    lines.push(`## 🔍 検索結果 (${messages.length}件)\n`);
+  }
+
+  // 各メッセージ
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    // ユーザー名を取得（キャッシュ）
+    let userName = msg.user || msg.username || "不明";
+    if (msg.user && !userCache[msg.user]) {
+      const userInfo = await getUserInfo(msg.user);
+      userCache[msg.user] = userInfo.real_name || userInfo.name || msg.user;
+    }
+    if (msg.user) {
+      userName = userCache[msg.user];
+    }
+
+    // タイムスタンプを日時に変換
+    const timestamp = new Date(parseFloat(msg.ts) * 1000).toLocaleString("ja-JP");
+
+    // チャンネル名
+    const channelName = msg.channel?.name || "DM";
+
+    lines.push("---\n");
+    lines.push(`### ${i + 1}. #${channelName} - ${timestamp}`);
+    lines.push(`**${userName}**`);
+    lines.push(msg.text || "(内容なし)");
+    lines.push(`📎 ${msg.permalink}`);
+    lines.push("");
+  }
+
+  // 残りの件数
+  if (remaining > 0) {
+    lines.push("---\n");
+    lines.push(`💡 他に ${remaining} 件の結果があります。\`count\` パラメータで件数を増やせます。`);
+  }
+
+  // 使い方ヒント
+  lines.push("\n💡 スレッド全体を見るには: `get_slack_thread` に📎のURLを渡してください");
+
+  return lines.join("\n");
 }
 
 /**
@@ -695,6 +802,77 @@ server.tool(
         content: [{
           type: "text",
           text: `❌ 添削結果の処理中にエラーが発生しました: ${err.message}`,
+        }],
+      };
+    }
+  }
+);
+
+// ============================================
+// ツール: Slack検索
+// ============================================
+
+server.tool(
+  "search_slack",
+  "Slackメッセージをキーワードで検索します（search:readスコープが必要）",
+  {
+    query: z.string().min(1).describe("検索クエリ（Slack検索構文対応: from:@user, in:#channel等）"),
+    count: z.number().min(1).max(100).optional().describe("最大件数（デフォルト10）"),
+    channel: z.string().optional().describe("チャンネル名で絞り込み（#なし）"),
+  },
+  async ({ query, count = 10, channel }) => {
+    // 未認証チェック
+    if (!slackClient) {
+      return {
+        content: [{
+          type: "text",
+          text: "❌ Slack認証されていません。\n\n`npx slack-task-mcp auth` を実行して認証してください。",
+        }],
+      };
+    }
+
+    try {
+      // チャンネル指定時はクエリに追加
+      const fullQuery = channel ? `${query} in:#${channel}` : query;
+
+      // 検索実行
+      const { messages, total } = await searchSlackMessages(fullQuery, count);
+
+      // 結果をフォーマット
+      const formatted = await formatSearchResults(messages, total, count);
+
+      return {
+        content: [{
+          type: "text",
+          text: formatted,
+        }],
+      };
+    } catch (err) {
+      // search:read スコープ不足の場合
+      if (err.message?.includes("missing_scope") || err.message?.includes("not_allowed")) {
+        return {
+          content: [{
+            type: "text",
+            text: "❌ 検索権限がありません。\n\n`search:read` スコープが必要です。\n`npx slack-task-mcp auth` で再認証してください。",
+          }],
+        };
+      }
+
+      // レート制限
+      if (err.message?.includes("ratelimited")) {
+        return {
+          content: [{
+            type: "text",
+            text: "❌ APIレート制限に達しました。\n\nしばらく待ってから再試行してください。",
+          }],
+        };
+      }
+
+      // その他のエラー
+      return {
+        content: [{
+          type: "text",
+          text: `❌ 検索中にエラーが発生しました: ${err.message}`,
         }],
       };
     }
