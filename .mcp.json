@@ -2,11 +2,22 @@
   "mcpServers": {
     "slack-task": {
       "command": "node",
-      "args": ["src/index.js"],
-      "cwd": "/Users/01045822/Downloads/slack-task-mcp-dist",
+      "args": [
+        "src/index.js"
+      ],
       "env": {
         "SLACK_USER_TOKEN": "${SLACK_USER_TOKEN}"
       }
+    },
+    "spec-workflow": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@pimzino/spec-workflow-mcp@latest",
+        "."
+      ],
+      "env": {}
     }
   }
 }
