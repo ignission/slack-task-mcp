@@ -148,7 +148,7 @@ function parseSlackUrl(url) {
  */
 async function getThreadMessages(channel, threadTs) {
   if (!slackClient) {
-    throw new Error("Slack client not initialized. Set SLACK_USER_TOKEN environment variable.");
+    throw new Error("Slack認証されていません。`npx slack-task-mcp auth` を実行して認証してください。");
   }
 
   const allMessages = [];
@@ -881,26 +881,13 @@ server.tool(
 
 // サーバー起動
 async function main() {
-  // Slack User Token を取得（優先順位: credentials.json > 環境変数）
-  let token = null;
-
-  // 1. credentials.json を優先
+  // OAuth認証からトークンを取得
   const credentials = await loadCredentials();
   if (credentials?.access_token) {
-    token = credentials.access_token;
-  }
-
-  // 2. 環境変数（レガシー）
-  if (!token && process.env.SLACK_USER_TOKEN) {
-    token = process.env.SLACK_USER_TOKEN;
-  }
-
-  if (token) {
-    slackClient = new WebClient(token);
+    slackClient = new WebClient(credentials.access_token);
   } else {
-    console.error("Warning: Slack認証されていません。");
-    console.error("  `npx slack-task-mcp auth` を実行して認証するか、");
-    console.error("  SLACK_USER_TOKEN 環境変数を設定してください。");
+    console.error("❌ Slack認証されていません。");
+    console.error("   `npx slack-task-mcp auth` を実行して認証してください。");
   }
 
   await initDataDir();

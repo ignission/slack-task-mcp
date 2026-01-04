@@ -5,9 +5,7 @@
       "args": [
         "src/index.js"
       ],
-      "env": {
-        "SLACK_USER_TOKEN": "${SLACK_USER_TOKEN}"
-      }
+      "env": {}
     },
     "spec-workflow": {
       "type": "stdio",
