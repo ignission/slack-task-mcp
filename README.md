@@ -54,7 +54,7 @@ Claude Code / Claude Desktop用のSlackタスク管理MCPサーバーです。
   "mcpServers": {
     "slack-task": {
       "command": "node",
-      "args": ["/path/to/slack-task-mcp/src/index.js"],
+      "args": ["/path/to/slack-task-mcp/packages/mcp-server/src/index.js"],
       "env": {
         "SLACK_USER_TOKEN": "xoxp-your-token-here"
       }
@@ -164,17 +164,34 @@ Claude Code / Claude Desktop用のSlackタスク管理MCPサーバーです。
 
 - 設定ファイルのパスが正しいか確認
 - Claude Code / Claude Desktopを再起動したか確認
-- `node src/index.js` が単体で動作するか確認
+- `node packages/mcp-server/src/index.js` が単体で動作するか確認
 
 ### プライベートチャンネルが読めない
 
 - User Tokenを使用しているため、あなたが参加しているチャンネルのみ読み取り可能です
 - チャンネルに参加しているか確認してください
 
+## プロジェクト構造
+
+```
+slack-task-mcp/
+├── packages/
+│   ├── mcp-server/          # MCPサーバー本体
+│   │   └── src/
+│   │       ├── index.js     # サーバーエントリーポイント
+│   │       ├── auth.js      # OAuth認証
+│   │       └── cli.js       # CLIコマンド
+│   └── oauth-worker/        # Cloudflare Workers (OAuth)
+│       └── src/index.js
+├── pnpm-workspace.yaml      # pnpmモノレポ設定
+└── package.json
+```
+
 ## 技術スタック
 
 - **Runtime**: Node.js (ES Modules)
 - **Protocol**: MCP (Model Context Protocol)
+- **Package Manager**: pnpm (monorepo)
 - **Dependencies**:
   - `@modelcontextprotocol/sdk`
   - `@slack/web-api`
