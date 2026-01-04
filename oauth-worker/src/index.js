@@ -15,6 +15,7 @@ const USER_SCOPES = [
   "im:history",
   "mpim:history",
   "users:read",
+  "search:read",
 ].join(",");
 
 // セッション有効期限（5分）
