@@ -36,14 +36,14 @@ Claude Code / Claude Desktop用のSlackタスク管理MCPサーバーです。
 
 ## セットアップ
 
-### 1. Slack User Tokenを取得
+### 1. OAuth認証
 
-1. [Slack API](https://api.slack.com/apps) → アプリを選択（または新規作成）
-2. 「OAuth & Permissions」→ 以下のスコープを追加:
-   - `channels:history`
-   - `groups:history`
-   - `users:read`
-3. 「User OAuth Token」（`xoxp-...`）をコピー
+```bash
+cd /path/to/slack-task-mcp
+npx slack-task-mcp auth
+```
+
+ブラウザが開き、Slackの認証画面が表示されます。認証が完了すると、トークンは `~/.slack-task-mcp/credentials.json` に保存されます。
 
 ### 2. Claude Code / Claude Desktopの設定
 
@@ -54,10 +54,7 @@ Claude Code / Claude Desktop用のSlackタスク管理MCPサーバーです。
   "mcpServers": {
     "slack-task": {
       "command": "node",
-      "args": ["/path/to/slack-task-mcp/src/index.js"],
-      "env": {
-        "SLACK_USER_TOKEN": "xoxp-your-token-here"
-      }
+      "args": ["/path/to/slack-task-mcp/packages/mcp-server/src/index.js"]
     }
   }
 }
@@ -68,6 +65,14 @@ Claude Code / Claude Desktop用のSlackタスク管理MCPサーバーです。
 ### 3. 再起動
 
 設定を反映するためにClaude Code / Claude Desktopを再起動してください。
+
+### 認証コマンド
+
+```bash
+npx slack-task-mcp auth          # 認証を開始
+npx slack-task-mcp auth status   # 認証状態を確認
+npx slack-task-mcp auth logout   # ログアウト
+```
 
 ## 使い方
 
@@ -157,24 +162,41 @@ Claude Code / Claude Desktop用のSlackタスク管理MCPサーバーです。
 
 ### Slack APIエラー
 
-- User Tokenが正しく設定されているか確認
-- トークンに必要なスコープ（`channels:history`, `groups:history`等）があるか確認
+- `npx slack-task-mcp auth status` で認証状態を確認
+- 認証が切れている場合は `npx slack-task-mcp auth` で再認証
 
 ### MCPサーバーが認識されない
 
 - 設定ファイルのパスが正しいか確認
 - Claude Code / Claude Desktopを再起動したか確認
-- `node src/index.js` が単体で動作するか確認
+- `node packages/mcp-server/src/index.js` が単体で動作するか確認
 
 ### プライベートチャンネルが読めない
 
-- User Tokenを使用しているため、あなたが参加しているチャンネルのみ読み取り可能です
+- あなたが参加しているチャンネルのみ読み取り可能です
 - チャンネルに参加しているか確認してください
+
+## プロジェクト構造
+
+```
+slack-task-mcp/
+├── packages/
+│   ├── mcp-server/          # MCPサーバー本体
+│   │   └── src/
+│   │       ├── index.js     # サーバーエントリーポイント
+│   │       ├── auth.js      # OAuth認証
+│   │       └── cli.js       # CLIコマンド
+│   └── oauth-worker/        # Cloudflare Workers (OAuth)
+│       └── src/index.js
+├── pnpm-workspace.yaml      # pnpmモノレポ設定
+└── package.json
+```
 
 ## 技術スタック
 
 - **Runtime**: Node.js (ES Modules)
 - **Protocol**: MCP (Model Context Protocol)
+- **Package Manager**: pnpm (monorepo)
 - **Dependencies**:
   - `@modelcontextprotocol/sdk`
   - `@slack/web-api`

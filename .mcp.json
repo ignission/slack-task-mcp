@@ -3,7 +3,7 @@
     "slack-task": {
       "command": "node",
       "args": [
-        "src/index.js"
+        "packages/mcp-server/src/index.js"
       ],
       "env": {}
     },

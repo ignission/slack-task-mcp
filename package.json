@@ -1,24 +1,10 @@
 {
-  "name": "slack-task-mcp",
+  "name": "slack-task-mcp-monorepo",
   "version": "1.0.0",
-  "description": "MCP Server for Slack task management with Claude Code",
+  "private": true,
   "type": "module",
-  "main": "src/index.js",
-  "bin": {
-    "slack-task-mcp": "./src/cli.js"
-  },
-  "scripts": {
-    "start": "node src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "packageManager": "pnpm@10.26.0",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.1",
-    "@slack/web-api": "^7.13.0",
-    "open": "^10.1.0",
-    "zod": "^4.2.1"
+  "scripts": {
+    "deploy:worker": "pnpm --filter @slack-task-mcp/oauth-worker deploy"
   }
 }
