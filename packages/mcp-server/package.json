@@ -1,0 +1,22 @@
+{
+  "name": "@slack-task-mcp/server",
+  "version": "1.0.0",
+  "description": "MCP Server for Slack task management with Claude Code",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "slack-task-mcp": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@slack/web-api": "^7.13.0",
+    "open": "^10.1.0",
+    "zod": "^4.2.1"
+  }
+}
