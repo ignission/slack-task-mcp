@@ -2,19 +2,19 @@
 
 /**
  * Slack Task MCP Server
- * 
+ *
  * Claude Code用のSlackタスク管理MCPサーバー
  * - Slackスレッドの取得
  * - タスクのJSON永続化
  */
 
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebClient } from "@slack/web-api";
 import { z } from "zod";
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
 import { loadCredentials } from "./auth.js";
 
 // データ保存先
@@ -81,7 +81,7 @@ const EditedReplySchema = z.object({
 // search_slack 用 Zodスキーマ
 // ============================================
 
-const SearchParamsSchema = z.object({
+const _SearchParamsSchema = z.object({
   query: z.string().min(1).describe("検索クエリ（Slack検索構文対応: from:@user, in:#channel等）"),
   count: z.number().min(1).max(100).optional().describe("最大件数（デフォルト10）"),
   channel: z.string().optional().describe("チャンネル名で絞り込み（#なし）"),
@@ -96,7 +96,7 @@ let slackClient = null;
 async function initDataDir() {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch (err) {
+  } catch (_err) {
     // 既に存在する場合は無視
   }
 }
@@ -108,7 +108,7 @@ async function loadTasks() {
   try {
     const data = await fs.readFile(TASKS_FILE, "utf-8");
     return JSON.parse(data);
-  } catch (err) {
+  } catch (_err) {
     return { tasks: [] };
   }
 }
@@ -131,15 +131,15 @@ function parseSlackUrl(url) {
     const channel = archivesMatch[1];
     const tsRaw = archivesMatch[2];
     // p1234567890123456 -> 1234567890.123456
-    const ts = tsRaw.slice(0, 10) + "." + tsRaw.slice(10);
-    
+    const ts = `${tsRaw.slice(0, 10)}.${tsRaw.slice(10)}`;
+
     // thread_tsがある場合
     const threadMatch = url.match(/thread_ts=([\d.]+)/);
     const threadTs = threadMatch ? threadMatch[1] : ts;
-    
+
     return { channel, ts, threadTs };
   }
-  
+
   return null;
 }
 
@@ -148,11 +148,13 @@ function parseSlackUrl(url) {
  */
 async function getThreadMessages(channel, threadTs) {
   if (!slackClient) {
-    throw new Error("Slack認証されていません。`npx slack-task-mcp auth` を実行して認証してください。");
+    throw new Error(
+      "Slack認証されていません。`npx slack-task-mcp auth` を実行して認証してください。",
+    );
   }
 
   const allMessages = [];
-  let cursor = undefined;
+  let cursor;
 
   // ページネーションで全メッセージを取得
   do {
@@ -182,7 +184,7 @@ async function getThreadMessages(channel, threadTs) {
  */
 async function getUserInfo(userId) {
   if (!slackClient) return { name: userId, real_name: userId };
-  
+
   try {
     const result = await slackClient.users.info({ user: userId });
     return result.user || { name: userId, real_name: userId };
@@ -219,7 +221,7 @@ async function searchSlackMessages(query, count = 10) {
 /**
  * 検索結果をMarkdown形式にフォーマット
  */
-async function formatSearchResults(messages, total, requestedCount) {
+async function formatSearchResults(messages, total, _requestedCount) {
   if (messages.length === 0) {
     return "🔍 該当するメッセージはありません";
   }
@@ -281,7 +283,7 @@ async function formatSearchResults(messages, total, requestedCount) {
 async function formatMessages(messages) {
   const formatted = [];
   const userCache = {};
-  
+
   for (const msg of messages) {
     // ユーザー名を取得（キャッシュ）
     let userName = msg.user;
@@ -290,10 +292,10 @@ async function formatMessages(messages) {
       userCache[msg.user] = userInfo.real_name || userInfo.name || msg.user;
     }
     userName = userCache[msg.user] || msg.user;
-    
+
     // タイムスタンプを日時に変換
     const timestamp = new Date(parseFloat(msg.ts) * 1000).toLocaleString("ja-JP");
-    
+
     formatted.push({
       user: userName,
       text: msg.text,
@@ -301,7 +303,7 @@ async function formatMessages(messages) {
       ts: msg.ts,
     });
   }
-  
+
   return formatted;
 }
 
@@ -316,32 +318,38 @@ server.tool(
   "get_slack_thread",
   "SlackスレッドのURLからメッセージを取得します",
   {
-    url: z.string().describe("SlackスレッドのURL（例: https://xxx.slack.com/archives/C12345678/p1234567890123456）"),
+    url: z
+      .string()
+      .describe(
+        "SlackスレッドのURL（例: https://xxx.slack.com/archives/C12345678/p1234567890123456）",
+      ),
   },
   async ({ url }) => {
     const parsed = parseSlackUrl(url);
     if (!parsed) {
       return {
-        content: [{ type: "text", text: "無効なSlack URLです。archives形式のURLを指定してください。" }],
+        content: [
+          { type: "text", text: "無効なSlack URLです。archives形式のURLを指定してください。" },
+        ],
       };
     }
-    
+
     const { channel, threadTs } = parsed;
     const messages = await getThreadMessages(channel, threadTs);
     const formatted = await formatMessages(messages);
-    
+
     // 読みやすい形式でテキスト化
-    const text = formatted.map(m => 
-      `[${m.timestamp}] ${m.user}:\n${m.text}`
-    ).join("\n\n---\n\n");
-    
+    const text = formatted.map((m) => `[${m.timestamp}] ${m.user}:\n${m.text}`).join("\n\n---\n\n");
+
     return {
-      content: [{ 
-        type: "text", 
-        text: `## スレッド内容 (${formatted.length}件のメッセージ)\n\n${text}` 
-      }],
+      content: [
+        {
+          type: "text",
+          text: `## スレッド内容 (${formatted.length}件のメッセージ)\n\n${text}`,
+        },
+      ],
     };
-  }
+  },
 );
 
 // ツール: タスクを保存
@@ -351,16 +359,20 @@ server.tool(
   {
     title: z.string().describe("タスクのタイトル"),
     purpose: z.string().describe("タスクの目的"),
-    steps: z.array(z.object({
-      text: z.string().describe("ステップの内容"),
-      estimate_min: z.number().describe("推定時間（分）"),
-    })).describe("タスクのステップ"),
+    steps: z
+      .array(
+        z.object({
+          text: z.string().describe("ステップの内容"),
+          estimate_min: z.number().describe("推定時間（分）"),
+        }),
+      )
+      .describe("タスクのステップ"),
     source_url: z.string().optional().describe("元のSlack URL"),
   },
   async ({ title, purpose, steps, source_url }) => {
     await initDataDir();
     const data = await loadTasks();
-    
+
     const task = {
       id: Date.now().toString(),
       title,
@@ -375,67 +387,69 @@ server.tool(
       status: "active",
       created_at: new Date().toISOString(),
     };
-    
+
     data.tasks.push(task);
     await saveTasks(data);
-    
+
     return {
-      content: [{ 
-        type: "text", 
-        text: `✅ タスクを保存しました\n\nID: ${task.id}\nタイトル: ${title}\nステップ数: ${steps.length}` 
-      }],
+      content: [
+        {
+          type: "text",
+          text: `✅ タスクを保存しました\n\nID: ${task.id}\nタイトル: ${title}\nステップ数: ${steps.length}`,
+        },
+      ],
     };
-  }
+  },
 );
 
 // ツール: タスク一覧を取得
-server.tool(
-  "list_tasks",
-  "保存されているタスクの一覧を取得します",
-  {},
-  async () => {
-    await initDataDir();
-    const data = await loadTasks();
-    
-    if (data.tasks.length === 0) {
-      return {
-        content: [{ type: "text", text: "📋 タスクはありません" }],
-      };
-    }
-    
-    const activeTasks = data.tasks.filter(t => t.status === "active");
+server.tool("list_tasks", "保存されているタスクの一覧を取得します", {}, async () => {
+  await initDataDir();
+  const data = await loadTasks();
 
-    if (activeTasks.length === 0) {
-      const archivedCount = data.tasks.filter(t => t.status === "archived").length;
-      const message = archivedCount > 0
+  if (data.tasks.length === 0) {
+    return {
+      content: [{ type: "text", text: "📋 タスクはありません" }],
+    };
+  }
+
+  const activeTasks = data.tasks.filter((t) => t.status === "active");
+
+  if (activeTasks.length === 0) {
+    const archivedCount = data.tasks.filter((t) => t.status === "archived").length;
+    const message =
+      archivedCount > 0
         ? `📋 アクティブなタスクはありません（アーカイブ: ${archivedCount}件）\n\n💡 過去のタスクは search_tasks で検索できます`
         : "📋 タスクはありません";
-      return {
-        content: [{ type: "text", text: message }],
-      };
-    }
+    return {
+      content: [{ type: "text", text: message }],
+    };
+  }
 
-    const text = activeTasks.map(task => {
-      const completedSteps = task.steps.filter(s => s.status === "done").length;
+  const text = activeTasks
+    .map((task) => {
+      const completedSteps = task.steps.filter((s) => s.status === "done").length;
       const totalSteps = task.steps.length;
-      const progress = totalSteps > 0 ? Math.round(completedSteps / totalSteps * 100) : 0;
+      const progress = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
-      const stepsText = task.steps.map(s => {
-        const checkbox = s.status === "done" ? "☑️" : "☐";
-        const stepText = s.status === "done" ? `~~${s.text}~~` : s.text;
-        return `  ${checkbox} ${s.order}. ${stepText} (${s.estimate_min}分)`;
-      }).join("\n");
+      const stepsText = task.steps
+        .map((s) => {
+          const checkbox = s.status === "done" ? "☑️" : "☐";
+          const stepText = s.status === "done" ? `~~${s.text}~~` : s.text;
+          return `  ${checkbox} ${s.order}. ${stepText} (${s.estimate_min}分)`;
+        })
+        .join("\n");
 
       const sourceUrlText = task.source_url ? `\n📎 元スレッド: ${task.source_url}` : "";
 
       return `### ${task.title}\n進捗: ${completedSteps}/${totalSteps} (${progress}%)${sourceUrlText}\n\n${stepsText}`;
-    }).join("\n\n---\n\n");
-    
-    return {
-      content: [{ type: "text", text: `## 📋 タスク一覧 (${activeTasks.length}件)\n\n${text}` }],
-    };
-  }
-);
+    })
+    .join("\n\n---\n\n");
+
+  return {
+    content: [{ type: "text", text: `## 📋 タスク一覧 (${activeTasks.length}件)\n\n${text}` }],
+  };
+});
 
 // ツール: タスクを検索（アーカイブ含む）
 server.tool(
@@ -443,7 +457,10 @@ server.tool(
   "キーワードや日付でタスクを検索します（アーカイブ済みタスクも含む）",
   {
     keyword: z.string().optional().describe("検索キーワード（タイトル・目的・ステップ内容を検索）"),
-    status: z.enum(["all", "active", "archived"]).optional().describe("ステータスでフィルタ（デフォルト: all）"),
+    status: z
+      .enum(["all", "active", "archived"])
+      .optional()
+      .describe("ステータスでフィルタ（デフォルト: all）"),
     days: z.number().optional().describe("過去N日以内に作成/完了したタスク"),
   },
   async ({ keyword, status = "all", days }) => {
@@ -460,14 +477,14 @@ server.tool(
 
     // ステータスフィルタ
     if (status !== "all") {
-      results = results.filter(t => t.status === status);
+      results = results.filter((t) => t.status === status);
     }
 
     // 日付フィルタ
     if (days) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
-      results = results.filter(t => {
+      results = results.filter((t) => {
         const taskDate = new Date(t.completed_at || t.created_at);
         return taskDate >= cutoff;
       });
@@ -476,12 +493,10 @@ server.tool(
     // キーワード検索
     if (keyword) {
       const lowerKeyword = keyword.toLowerCase();
-      results = results.filter(t => {
-        const searchText = [
-          t.title,
-          t.purpose,
-          ...t.steps.map(s => s.text),
-        ].join(" ").toLowerCase();
+      results = results.filter((t) => {
+        const searchText = [t.title, t.purpose, ...t.steps.map((s) => s.text)]
+          .join(" ")
+          .toLowerCase();
         return searchText.includes(lowerKeyword);
       });
     }
@@ -495,26 +510,30 @@ server.tool(
     // 新しい順にソート
     results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    const text = results.map(task => {
-      const statusIcon = task.status === "active" ? "🔵" : "📦";
-      const dateStr = task.completed_at
-        ? `完了: ${new Date(task.completed_at).toLocaleDateString("ja-JP")}`
-        : `作成: ${new Date(task.created_at).toLocaleDateString("ja-JP")}`;
+    const text = results
+      .map((task) => {
+        const statusIcon = task.status === "active" ? "🔵" : "📦";
+        const dateStr = task.completed_at
+          ? `完了: ${new Date(task.completed_at).toLocaleDateString("ja-JP")}`
+          : `作成: ${new Date(task.created_at).toLocaleDateString("ja-JP")}`;
 
-      const stepsText = task.steps.map(s => {
-        const checkbox = s.status === "done" ? "☑️" : "☐";
-        return `  ${checkbox} ${s.order}. ${s.text}`;
-      }).join("\n");
+        const stepsText = task.steps
+          .map((s) => {
+            const checkbox = s.status === "done" ? "☑️" : "☐";
+            return `  ${checkbox} ${s.order}. ${s.text}`;
+          })
+          .join("\n");
 
-      const sourceUrlText = task.source_url ? `\n📎 ${task.source_url}` : "";
+        const sourceUrlText = task.source_url ? `\n📎 ${task.source_url}` : "";
 
-      return `### ${statusIcon} ${task.title}\n${dateStr}${sourceUrlText}\n\n${stepsText}`;
-    }).join("\n\n---\n\n");
+        return `### ${statusIcon} ${task.title}\n${dateStr}${sourceUrlText}\n\n${stepsText}`;
+      })
+      .join("\n\n---\n\n");
 
     return {
       content: [{ type: "text", text: `## 🔍 検索結果 (${results.length}件)\n\n${text}` }],
     };
-  }
+  },
 );
 
 // ツール: ステップを完了にする
@@ -528,56 +547,56 @@ server.tool(
   async ({ task_id, step_number }) => {
     await initDataDir();
     const data = await loadTasks();
-    
+
     // タスクを検索
     let task;
     if (task_id) {
-      task = data.tasks.find(t => t.id === task_id);
+      task = data.tasks.find((t) => t.id === task_id);
     } else {
-      task = data.tasks.find(t => t.status === "active");
+      task = data.tasks.find((t) => t.status === "active");
     }
-    
+
     if (!task) {
       return {
         content: [{ type: "text", text: "❌ タスクが見つかりません" }],
       };
     }
-    
+
     // ステップを完了に
-    const step = task.steps.find(s => s.order === step_number);
+    const step = task.steps.find((s) => s.order === step_number);
     if (!step) {
       return {
         content: [{ type: "text", text: `❌ ステップ ${step_number} が見つかりません` }],
       };
     }
-    
+
     step.status = "done";
     step.completed_at = new Date().toISOString();
-    
+
     // 全ステップ完了ならタスクをアーカイブ
-    const allDone = task.steps.every(s => s.status === "done");
+    const allDone = task.steps.every((s) => s.status === "done");
     if (allDone) {
       task.status = "archived";
       task.completed_at = new Date().toISOString();
     }
-    
+
     await saveTasks(data);
-    
+
     // 次のステップを取得
-    const nextStep = task.steps.find(s => s.status !== "done");
-    
+    const nextStep = task.steps.find((s) => s.status !== "done");
+
     let responseText = `✅ ステップ ${step_number} を完了しました！\n\n~~${step.text}~~`;
-    
+
     if (allDone) {
-      responseText += "\n\n🎉 タスク「" + task.title + "」を全て完了しました！（アーカイブ済み）";
+      responseText += `\n\n🎉 タスク「${task.title}」を全て完了しました！（アーカイブ済み）`;
     } else if (nextStep) {
       responseText += `\n\n📌 次のステップ: ${nextStep.order}. ${nextStep.text} (${nextStep.estimate_min}分)`;
     }
-    
+
     return {
       content: [{ type: "text", text: responseText }],
     };
-  }
+  },
 );
 
 // ============================================
@@ -666,20 +685,24 @@ server.tool(
       const formatted = formatAnalysisResult(analysis);
 
       return {
-        content: [{
-          type: "text",
-          text: formatted,
-        }],
+        content: [
+          {
+            type: "text",
+            text: formatted,
+          },
+        ],
       };
     } catch (err) {
       return {
-        content: [{
-          type: "text",
-          text: `❌ 分析結果の処理中にエラーが発生しました: ${err.message}`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `❌ 分析結果の処理中にエラーが発生しました: ${err.message}`,
+          },
+        ],
       };
     }
-  }
+  },
 );
 
 // ============================================
@@ -734,7 +757,9 @@ function formatEditedReply(draftText, editedReply) {
   lines.push("## 添削結果\n");
 
   // タイプとトーン
-  lines.push(`**タイプ**: ${formatTaskType(editedReply.task_type)} | **トーン**: ${formatTone(editedReply.tone)}`);
+  lines.push(
+    `**タイプ**: ${formatTaskType(editedReply.task_type)} | **トーン**: ${formatTone(editedReply.tone)}`,
+  );
   lines.push("");
 
   // Before
@@ -792,20 +817,24 @@ server.tool(
       const formatted = formatEditedReply(draft_text, edited_reply);
 
       return {
-        content: [{
-          type: "text",
-          text: formatted,
-        }],
+        content: [
+          {
+            type: "text",
+            text: formatted,
+          },
+        ],
       };
     } catch (err) {
       return {
-        content: [{
-          type: "text",
-          text: `❌ 添削結果の処理中にエラーが発生しました: ${err.message}`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `❌ 添削結果の処理中にエラーが発生しました: ${err.message}`,
+          },
+        ],
       };
     }
-  }
+  },
 );
 
 // ============================================
@@ -824,10 +853,12 @@ server.tool(
     // 未認証チェック
     if (!slackClient) {
       return {
-        content: [{
-          type: "text",
-          text: "❌ Slack認証されていません。\n\n`npx slack-task-mcp auth` を実行して認証してください。",
-        }],
+        content: [
+          {
+            type: "text",
+            text: "❌ Slack認証されていません。\n\n`npx slack-task-mcp auth` を実行して認証してください。",
+          },
+        ],
       };
     }
 
@@ -842,41 +873,49 @@ server.tool(
       const formatted = await formatSearchResults(messages, total, count);
 
       return {
-        content: [{
-          type: "text",
-          text: formatted,
-        }],
+        content: [
+          {
+            type: "text",
+            text: formatted,
+          },
+        ],
       };
     } catch (err) {
       // search:read スコープ不足の場合
       if (err.message?.includes("missing_scope") || err.message?.includes("not_allowed")) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ 検索権限がありません。\n\n`search:read` スコープが必要です。\n`npx slack-task-mcp auth` で再認証してください。",
-          }],
+          content: [
+            {
+              type: "text",
+              text: "❌ 検索権限がありません。\n\n`search:read` スコープが必要です。\n`npx slack-task-mcp auth` で再認証してください。",
+            },
+          ],
         };
       }
 
       // レート制限
       if (err.message?.includes("ratelimited")) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ APIレート制限に達しました。\n\nしばらく待ってから再試行してください。",
-          }],
+          content: [
+            {
+              type: "text",
+              text: "❌ APIレート制限に達しました。\n\nしばらく待ってから再試行してください。",
+            },
+          ],
         };
       }
 
       // その他のエラー
       return {
-        content: [{
-          type: "text",
-          text: `❌ 検索中にエラーが発生しました: ${err.message}`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `❌ 検索中にエラーが発生しました: ${err.message}`,
+          },
+        ],
       };
     }
-  }
+  },
 );
 
 // サーバー起動

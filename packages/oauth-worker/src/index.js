@@ -73,7 +73,7 @@ async function handleAuth(request, env) {
   await env.AUTH_SESSIONS.put(
     sessionId,
     JSON.stringify({ status: "pending", created_at: Date.now() }),
-    { expirationTtl: SESSION_TTL }
+    { expirationTtl: SESSION_TTL },
   );
 
   // Slack OAuth URL を生成
@@ -103,11 +103,9 @@ async function handleCallback(request, env) {
   // エラーチェック
   if (error) {
     if (state) {
-      await env.AUTH_SESSIONS.put(
-        state,
-        JSON.stringify({ status: "error", error: error }),
-        { expirationTtl: SESSION_TTL }
-      );
+      await env.AUTH_SESSIONS.put(state, JSON.stringify({ status: "error", error: error }), {
+        expirationTtl: SESSION_TTL,
+      });
     }
     return htmlResponse(`
       <!DOCTYPE html>
@@ -122,7 +120,8 @@ async function handleCallback(request, env) {
   }
 
   if (!code || !state) {
-    return htmlResponse(`
+    return htmlResponse(
+      `
       <!DOCTYPE html>
       <html>
         <head><title>エラー</title></head>
@@ -131,13 +130,16 @@ async function handleCallback(request, env) {
           <p>認証を最初からやり直してください。</p>
         </body>
       </html>
-    `, 400);
+    `,
+      400,
+    );
   }
 
   // セッションを確認
   const sessionData = await env.AUTH_SESSIONS.get(state);
   if (!sessionData) {
-    return htmlResponse(`
+    return htmlResponse(
+      `
       <!DOCTYPE html>
       <html>
         <head><title>エラー</title></head>
@@ -146,7 +148,9 @@ async function handleCallback(request, env) {
           <p>認証を最初からやり直してください。</p>
         </body>
       </html>
-    `, 400);
+    `,
+      400,
+    );
   }
 
   try {
@@ -185,11 +189,7 @@ async function handleCallback(request, env) {
       created_at: new Date().toISOString(),
     };
 
-    await env.AUTH_SESSIONS.put(
-      state,
-      JSON.stringify(credentials),
-      { expirationTtl: SESSION_TTL }
-    );
+    await env.AUTH_SESSIONS.put(state, JSON.stringify(credentials), { expirationTtl: SESSION_TTL });
 
     return htmlResponse(`
       <!DOCTYPE html>
@@ -202,15 +202,13 @@ async function handleCallback(request, env) {
         </body>
       </html>
     `);
-
   } catch (err) {
-    await env.AUTH_SESSIONS.put(
-      state,
-      JSON.stringify({ status: "error", error: err.message }),
-      { expirationTtl: SESSION_TTL }
-    );
+    await env.AUTH_SESSIONS.put(state, JSON.stringify({ status: "error", error: err.message }), {
+      expirationTtl: SESSION_TTL,
+    });
 
-    return htmlResponse(`
+    return htmlResponse(
+      `
       <!DOCTYPE html>
       <html>
         <head><title>エラー</title></head>
@@ -219,7 +217,9 @@ async function handleCallback(request, env) {
           <p>${err.message}</p>
         </body>
       </html>
-    `, 500);
+    `,
+      500,
+    );
   }
 }
 
@@ -263,7 +263,7 @@ async function handlePoll(request, env) {
  * メインハンドラー
  */
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env, _ctx) {
     const url = new URL(request.url);
 
     // CORS preflight

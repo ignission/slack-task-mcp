@@ -2,19 +2,13 @@
   "mcpServers": {
     "slack-task": {
       "command": "node",
-      "args": [
-        "packages/mcp-server/src/index.js"
-      ],
+      "args": ["packages/mcp-server/src/index.js"],
       "env": {}
     },
     "spec-workflow": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "-y",
-        "@pimzino/spec-workflow-mcp@latest",
-        "."
-      ],
+      "args": ["-y", "@pimzino/spec-workflow-mcp@latest", "."],
       "env": {}
     }
   }

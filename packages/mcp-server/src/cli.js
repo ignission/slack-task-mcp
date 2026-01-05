@@ -6,7 +6,7 @@
  * npx slack-task-mcp [command] [options]
  */
 
-import { authenticate, showStatus, logout } from "./auth.js";
+import { authenticate, logout, showStatus } from "./auth.js";
 
 // コマンドライン引数を解析
 const args = process.argv.slice(2);

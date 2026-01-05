@@ -6,10 +6,10 @@
  * Cloudflare Workers を使った OAuth 認証フロー
  */
 
-import crypto from "crypto";
-import fs from "fs/promises";
-import path from "path";
-import os from "os";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import open from "open";
 
 // 定数
@@ -19,7 +19,8 @@ const AUTH_TIMEOUT = 5 * 60 * 1000; // 5分
 const POLL_INTERVAL = 2000; // 2秒
 
 // OAuth Worker URL
-const OAUTH_WORKER_URL = process.env.OAUTH_WORKER_URL || "https://slack-task-mcp-oauth.ignission.workers.dev";
+const OAUTH_WORKER_URL =
+  process.env.OAUTH_WORKER_URL || "https://slack-task-mcp-oauth.ignission.workers.dev";
 
 /**
  * データディレクトリを初期化
@@ -27,7 +28,7 @@ const OAUTH_WORKER_URL = process.env.OAUTH_WORKER_URL || "https://slack-task-mcp
 async function initDataDir() {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch (err) {
+  } catch (_err) {
     // 既に存在する場合は無視
   }
 }
@@ -39,7 +40,7 @@ export async function loadCredentials() {
   try {
     const data = await fs.readFile(CREDENTIALS_FILE, "utf-8");
     return JSON.parse(data);
-  } catch (err) {
+  } catch (_err) {
     return null;
   }
 }
@@ -49,11 +50,7 @@ export async function loadCredentials() {
  */
 async function saveCredentials(credentials) {
   await initDataDir();
-  await fs.writeFile(
-    CREDENTIALS_FILE,
-    JSON.stringify(credentials, null, 2),
-    { mode: 0o600 }
-  );
+  await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2), { mode: 0o600 });
 }
 
 /**
@@ -63,7 +60,7 @@ async function deleteCredentials() {
   try {
     await fs.unlink(CREDENTIALS_FILE);
     return true;
-  } catch (err) {
+  } catch (_err) {
     return false;
   }
 }
@@ -111,7 +108,7 @@ export async function authenticate(options = {}) {
     console.log("ブラウザで Slack ログイン画面を開いています...");
     try {
       await open(authUrl);
-    } catch (err) {
+    } catch (_err) {
       console.log("");
       console.log("ブラウザを自動で開けませんでした。以下の URL を手動で開いてください:");
       console.log("");
@@ -161,7 +158,7 @@ export async function authenticate(options = {}) {
 
       // pending の場合は継続
       process.stdout.write(".");
-    } catch (err) {
+    } catch (_err) {
       // ネットワークエラーは無視して継続
       process.stdout.write("x");
     }
