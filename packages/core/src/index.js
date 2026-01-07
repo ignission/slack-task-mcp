@@ -9,19 +9,19 @@
  */
 
 import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebClient } from "@slack/web-api";
 import { z } from "zod";
-import { loadCredentials } from "./auth.js";
+import { getTasksPath } from "./paths.js";
+import {
+  getCredentialsByDomain,
+  getFirstCredentials,
+  listWorkspaces,
+  ensureDataDir,
+} from "./credentials.js";
 import { analyzeRequest } from "./agents/analyze.js";
 import { draftReply } from "./agents/draft-reply.js";
-
-// データ保存先
-const DATA_DIR = path.join(os.homedir(), ".slack-task-mcp");
-const TASKS_FILE = path.join(DATA_DIR, "tasks.json");
 
 // ============================================
 // ツールパラメータ用 Zodスキーマ
@@ -41,18 +41,60 @@ const _SearchParamsSchema = z.object({
   channel: z.string().optional().describe("チャンネル名で絞り込み（#なし）"),
 });
 
-// Slack クライアント（User Token使用）
-let slackClient = null;
+// Slack クライアントのキャッシュ（team_domain -> WebClient）
+const slackClients = new Map();
 
 /**
- * データディレクトリを初期化
+ * URLからteam_domainを抽出
+ * @param {string} slackUrl - Slack URL（例: https://myworkspace.slack.com/archives/C123/p456）
+ * @returns {string|null} team_domain または null
  */
-async function initDataDir() {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch (_err) {
-    // 既に存在する場合は無視
+function extractTeamDomain(slackUrl) {
+  const match = slackUrl.match(/https:\/\/([^.]+)\.slack\.com/);
+  return match ? match[1] : null;
+}
+
+/**
+ * team_domain用のSlackクライアントを取得
+ * @param {string} teamDomain - ワークスペースのドメイン
+ * @returns {Promise<WebClient|null>}
+ */
+async function getSlackClient(teamDomain) {
+  // キャッシュにあればそれを返す
+  if (slackClients.has(teamDomain)) {
+    return slackClients.get(teamDomain);
   }
+
+  // 認証情報を取得
+  const credentials = await getCredentialsByDomain(teamDomain);
+  if (!credentials?.access_token) {
+    return null;
+  }
+
+  // クライアントを作成してキャッシュ
+  const client = new WebClient(credentials.access_token);
+  slackClients.set(teamDomain, client);
+  return client;
+}
+
+/**
+ * 最初のワークスペースのSlackクライアントを取得（フォールバック用）
+ * @returns {Promise<WebClient|null>}
+ */
+async function getDefaultSlackClient() {
+  const credentials = await getFirstCredentials();
+  if (!credentials?.access_token) {
+    return null;
+  }
+
+  // キャッシュにあればそれを返す
+  if (slackClients.has(credentials.team_domain)) {
+    return slackClients.get(credentials.team_domain);
+  }
+
+  const client = new WebClient(credentials.access_token);
+  slackClients.set(credentials.team_domain, client);
+  return client;
 }
 
 /**
@@ -60,7 +102,7 @@ async function initDataDir() {
  */
 async function loadTasks() {
   try {
-    const data = await fs.readFile(TASKS_FILE, "utf-8");
+    const data = await fs.readFile(getTasksPath(), "utf-8");
     return JSON.parse(data);
   } catch (_err) {
     return { tasks: [] };
@@ -71,7 +113,8 @@ async function loadTasks() {
  * タスクデータを保存
  */
 async function saveTasks(data) {
-  await fs.writeFile(TASKS_FILE, JSON.stringify(data, null, 2));
+  await ensureDataDir();
+  await fs.writeFile(getTasksPath(), JSON.stringify(data, null, 2));
 }
 
 /**
@@ -100,10 +143,10 @@ function parseSlackUrl(url) {
 /**
  * スレッドのメッセージを取得（ページネーション対応）
  */
-async function getThreadMessages(channel, threadTs) {
+async function getThreadMessages(slackClient, channel, threadTs) {
   if (!slackClient) {
     throw new Error(
-      "Slack認証されていません。`npx slack-task-mcp auth` を実行して認証してください。",
+      "Slack認証されていません。`npx @ignission/slack-task-mcp auth login` を実行して認証してください。",
     );
   }
 
@@ -136,7 +179,7 @@ async function getThreadMessages(channel, threadTs) {
 /**
  * ユーザー情報を取得
  */
-async function getUserInfo(userId) {
+async function getUserInfo(slackClient, userId) {
   if (!slackClient) return { name: userId, real_name: userId };
 
   try {
@@ -150,7 +193,7 @@ async function getUserInfo(userId) {
 /**
  * Slackメッセージを検索
  */
-async function searchSlackMessages(query, count = 10) {
+async function searchSlackMessages(slackClient, query, count = 10) {
   if (!slackClient) {
     throw new Error("Slack client not initialized");
   }
@@ -175,7 +218,7 @@ async function searchSlackMessages(query, count = 10) {
 /**
  * 検索結果をMarkdown形式にフォーマット
  */
-async function formatSearchResults(messages, total, _requestedCount) {
+async function formatSearchResults(slackClient, messages, total, _requestedCount) {
   if (messages.length === 0) {
     return "🔍 該当するメッセージはありません";
   }
@@ -198,7 +241,7 @@ async function formatSearchResults(messages, total, _requestedCount) {
     // ユーザー名を取得（キャッシュ）
     let userName = msg.user || msg.username || "不明";
     if (msg.user && !userCache[msg.user]) {
-      const userInfo = await getUserInfo(msg.user);
+      const userInfo = await getUserInfo(slackClient, msg.user);
       userCache[msg.user] = userInfo.real_name || userInfo.name || msg.user;
     }
     if (msg.user) {
@@ -234,7 +277,7 @@ async function formatSearchResults(messages, total, _requestedCount) {
 /**
  * メッセージをフォーマット
  */
-async function formatMessages(messages) {
+async function formatMessages(slackClient, messages) {
   const formatted = [];
   const userCache = {};
 
@@ -242,7 +285,7 @@ async function formatMessages(messages) {
     // ユーザー名を取得（キャッシュ）
     let userName = msg.user;
     if (msg.user && !userCache[msg.user]) {
-      const userInfo = await getUserInfo(msg.user);
+      const userInfo = await getUserInfo(slackClient, msg.user);
       userCache[msg.user] = userInfo.real_name || userInfo.name || msg.user;
     }
     userName = userCache[msg.user] || msg.user;
@@ -288,9 +331,36 @@ server.tool(
       };
     }
 
+    // URLからワークスペースを特定
+    const teamDomain = extractTeamDomain(url);
+    if (!teamDomain) {
+      return {
+        content: [
+          { type: "text", text: "URLからワークスペースを特定できませんでした。" },
+        ],
+      };
+    }
+
+    // 該当ワークスペースのクライアントを取得
+    const slackClient = await getSlackClient(teamDomain);
+    if (!slackClient) {
+      const workspaces = await listWorkspaces();
+      const workspaceList = workspaces.length > 0
+        ? `\n認証済み: ${workspaces.map(w => w.team_domain).join(", ")}`
+        : "";
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ ワークスペース「${teamDomain}」は認証されていません。\n\n\`npx @ignission/slack-task-mcp auth login\` で認証してください。${workspaceList}`,
+          },
+        ],
+      };
+    }
+
     const { channel, threadTs } = parsed;
-    const messages = await getThreadMessages(channel, threadTs);
-    const formatted = await formatMessages(messages);
+    const messages = await getThreadMessages(slackClient, channel, threadTs);
+    const formatted = await formatMessages(slackClient, messages);
 
     // 読みやすい形式でテキスト化
     const text = formatted.map((m) => `[${m.timestamp}] ${m.user}:\n${m.text}`).join("\n\n---\n\n");
@@ -324,7 +394,7 @@ server.tool(
     source_url: z.string().optional().describe("元のSlack URL"),
   },
   async ({ title, purpose, steps, source_url }) => {
-    await initDataDir();
+    await ensureDataDir();
     const data = await loadTasks();
 
     const task = {
@@ -358,7 +428,7 @@ server.tool(
 
 // ツール: タスク一覧を取得
 server.tool("list_tasks", "保存されているタスクの一覧を取得します", {}, async () => {
-  await initDataDir();
+  await ensureDataDir();
   const data = await loadTasks();
 
   if (data.tasks.length === 0) {
@@ -418,7 +488,7 @@ server.tool(
     days: z.number().optional().describe("過去N日以内に作成/完了したタスク"),
   },
   async ({ keyword, status = "all", days }) => {
-    await initDataDir();
+    await ensureDataDir();
     const data = await loadTasks();
 
     if (data.tasks.length === 0) {
@@ -499,7 +569,7 @@ server.tool(
     step_number: z.number().describe("完了するステップ番号"),
   },
   async ({ task_id, step_number }) => {
-    await initDataDir();
+    await ensureDataDir();
     const data = await loadTasks();
 
     // タスクを検索
@@ -808,13 +878,15 @@ server.tool(
     channel: z.string().optional().describe("チャンネル名で絞り込み（#なし）"),
   },
   async ({ query, count = 10, channel }) => {
-    // 未認証チェック
+    // デフォルトのSlackクライアントを取得
+    const slackClient = await getDefaultSlackClient();
+
     if (!slackClient) {
       return {
         content: [
           {
             type: "text",
-            text: "❌ Slack認証されていません。\n\n`npx slack-task-mcp auth` を実行して認証してください。",
+            text: "❌ Slack認証されていません。\n\n`npx @ignission/slack-task-mcp auth login` を実行して認証してください。",
           },
         ],
       };
@@ -825,10 +897,10 @@ server.tool(
       const fullQuery = channel ? `${query} in:#${channel}` : query;
 
       // 検索実行
-      const { messages, total } = await searchSlackMessages(fullQuery, count);
+      const { messages, total } = await searchSlackMessages(slackClient, fullQuery, count);
 
       // 結果をフォーマット
-      const formatted = await formatSearchResults(messages, total, count);
+      const formatted = await formatSearchResults(slackClient, messages, total, count);
 
       return {
         content: [
@@ -845,7 +917,7 @@ server.tool(
           content: [
             {
               type: "text",
-              text: "❌ 検索権限がありません。\n\n`search:read` スコープが必要です。\n`npx slack-task-mcp auth` で再認証してください。",
+              text: "❌ 検索権限がありません。\n\n`search:read` スコープが必要です。\n`npx @ignission/slack-task-mcp auth login` で再認証してください。",
             },
           ],
         };
@@ -878,16 +950,17 @@ server.tool(
 
 // サーバー起動
 async function main() {
-  // OAuth認証からトークンを取得
-  const credentials = await loadCredentials();
-  if (credentials?.access_token) {
-    slackClient = new WebClient(credentials.access_token);
-  } else {
-    console.error("❌ Slack認証されていません。");
-    console.error("   `npx slack-task-mcp auth` を実行して認証してください。");
-  }
+  // データディレクトリを初期化
+  await ensureDataDir();
 
-  await initDataDir();
+  // 認証状態を確認（起動時のログ）
+  const workspaces = await listWorkspaces();
+  if (workspaces.length === 0) {
+    console.error("❌ Slack認証されていません。");
+    console.error("   `npx @ignission/slack-task-mcp auth login` を実行して認証してください。");
+  } else {
+    console.error(`✅ ${workspaces.length} ワークスペース認証済み: ${workspaces.map(w => w.team_domain).join(", ")}`);
+  }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
