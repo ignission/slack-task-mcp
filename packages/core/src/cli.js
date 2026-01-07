@@ -3,7 +3,7 @@
 /**
  * CLI エントリーポイント
  *
- * npx slack-task-mcp [command] [options]
+ * npx @ignission/slack-task-mcp [command] [options]
  */
 
 import { authenticate, logout, showStatus } from "./auth.js";
@@ -20,6 +20,10 @@ function parseOptions(args) {
     if (args[i] === "--no-browser") {
       options.noBrowser = true;
     }
+    if (args[i] === "--workspace" || args[i] === "-w") {
+      options.workspace = args[i + 1];
+      i++;
+    }
   }
   return options;
 }
@@ -30,23 +34,26 @@ function showHelp() {
 Slack Task MCP Server
 
 Usage:
-  npx slack-task-mcp [command] [options]
+  npx @ignission/slack-task-mcp [command] [options]
 
 Commands:
-  auth              Slack OAuth 認証を開始
-  auth status       認証状態を表示
-  auth logout       ログアウト
-  (なし)            MCP サーバーとして起動
+  auth login              新しいワークスペースを認証
+  auth status             認証状態を表示
+  auth logout             全ワークスペースからログアウト
+  auth logout -w <name>   指定ワークスペースのみログアウト
+  (なし)                  MCP サーバーとして起動
 
 Options:
-  --no-browser      ブラウザを自動で開かない
-  --help, -h        ヘルプを表示
+  --no-browser            ブラウザを自動で開かない
+  -w, --workspace <name>  ワークスペースを指定（ドメイン名）
+  --help, -h              ヘルプを表示
 
 Examples:
-  npx slack-task-mcp auth
-  npx slack-task-mcp auth status
-  npx slack-task-mcp auth logout
-  npx slack-task-mcp auth --no-browser
+  npx @ignission/slack-task-mcp auth login
+  npx @ignission/slack-task-mcp auth login --no-browser
+  npx @ignission/slack-task-mcp auth status
+  npx @ignission/slack-task-mcp auth logout
+  npx @ignission/slack-task-mcp auth logout --workspace mycompany
 `);
 }
 
@@ -60,17 +67,29 @@ async function main() {
 
   // auth コマンド
   if (command === "auth") {
-    if (subCommand === "status") {
+    const options = parseOptions(args);
+
+    if (subCommand === "login") {
+      // 認証フロー
+      const success = await authenticate(options);
+      process.exit(success ? 0 : 1);
+    } else if (subCommand === "status") {
       await showStatus();
       process.exit(0);
     } else if (subCommand === "logout") {
-      const success = await logout();
+      const success = await logout(options);
       process.exit(success ? 0 : 1);
-    } else {
-      // 認証フロー
-      const options = parseOptions(args);
+    } else if (!subCommand) {
+      // auth 単体は非推奨メッセージを表示してloginへ
+      console.log("⚠️  `auth` コマンドは `auth login` に変更されました");
+      console.log("");
       const success = await authenticate(options);
       process.exit(success ? 0 : 1);
+    } else {
+      console.error(`❌ 不明なサブコマンド: auth ${subCommand}`);
+      console.error("");
+      console.error("使用可能なサブコマンド: login, status, logout");
+      process.exit(1);
     }
   }
 
@@ -81,7 +100,7 @@ async function main() {
   } else {
     console.error(`❌ 不明なコマンド: ${command}`);
     console.error("");
-    console.error("ヘルプを表示するには: npx slack-task-mcp --help");
+    console.error("ヘルプを表示するには: npx @ignission/slack-task-mcp --help");
     process.exit(1);
   }
 }

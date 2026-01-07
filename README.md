@@ -96,10 +96,10 @@ graph TB
 ### 1. Slack認証
 
 ```bash
-npx @ignission/slack-task-mcp auth
+npx @ignission/slack-task-mcp auth login
 ```
 
-ブラウザが開き、Slackの認証画面が表示されます。認証が完了すると、トークンは `~/.slack-task-mcp/credentials.json` に保存されます。
+ブラウザが開き、Slackの認証画面が表示されます。複数のワークスペースを認証する場合は、このコマンドを繰り返し実行してください。
 
 ### 2. Claude Code / Claude Desktop の設定
 
@@ -221,12 +221,17 @@ slack-task-mcp/
 
 ## Data Storage
 
-タスクデータは以下に保存されます:
+XDG Base Directory Specification に準拠した場所にデータを保存します:
 
 ```
-~/.slack-task-mcp/tasks.json
-~/.slack-task-mcp/credentials.json  (OAuth Token)
+~/.local/share/slack-task-mcp/
+├── credentials/
+│   ├── T01234567.json     # ワークスペースごとの認証情報
+│   └── T98765432.json
+└── tasks.json              # タスクデータ
 ```
+
+環境変数 `XDG_DATA_HOME` が設定されている場合は、そのパスが使用されます。
 
 ---
 
@@ -235,9 +240,10 @@ slack-task-mcp/
 ### Slack APIエラー
 
 ```bash
-npx @ignission/slack-task-mcp auth status  # 認証状態を確認
-npx @ignission/slack-task-mcp auth         # 再認証
-npx @ignission/slack-task-mcp auth logout  # ログアウト
+npx @ignission/slack-task-mcp auth status                # 認証状態を確認
+npx @ignission/slack-task-mcp auth login                 # 新しいワークスペースを認証
+npx @ignission/slack-task-mcp auth logout                # 全ワークスペースからログアウト
+npx @ignission/slack-task-mcp auth logout -w mycompany   # 特定のワークスペースのみログアウト
 ```
 
 ### MCPサーバーが認識されない

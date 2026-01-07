@@ -7,63 +7,22 @@
  */
 
 import crypto from "node:crypto";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import open from "open";
+import {
+  listWorkspaces,
+  saveCredentials,
+  deleteCredentialsByDomain,
+  deleteAllCredentials,
+  getCredentialsDir,
+} from "./credentials.js";
 
 // 定数
-const DATA_DIR = path.join(os.homedir(), ".slack-task-mcp");
-const CREDENTIALS_FILE = path.join(DATA_DIR, "credentials.json");
 const AUTH_TIMEOUT = 5 * 60 * 1000; // 5分
 const POLL_INTERVAL = 2000; // 2秒
 
 // OAuth Worker URL
 const OAUTH_WORKER_URL =
   process.env.OAUTH_WORKER_URL || "https://slack-task-mcp-oauth.ignission.workers.dev";
-
-/**
- * データディレクトリを初期化
- */
-async function initDataDir() {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch (_err) {
-    // 既に存在する場合は無視
-  }
-}
-
-/**
- * credentials.json を読み込み
- */
-export async function loadCredentials() {
-  try {
-    const data = await fs.readFile(CREDENTIALS_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch (_err) {
-    return null;
-  }
-}
-
-/**
- * credentials.json を保存
- */
-async function saveCredentials(credentials) {
-  await initDataDir();
-  await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(credentials, null, 2), { mode: 0o600 });
-}
-
-/**
- * credentials.json を削除
- */
-async function deleteCredentials() {
-  try {
-    await fs.unlink(CREDENTIALS_FILE);
-    return true;
-  } catch (_err) {
-    return false;
-  }
-}
 
 /**
  * セッション ID を生成
@@ -129,7 +88,7 @@ export async function authenticate(options = {}) {
       const result = await pollForToken(sessionId);
 
       if (result.status === "success") {
-        // credentials を保存
+        // credentials を保存（team_domain を追加）
         const credentials = {
           access_token: result.access_token,
           token_type: result.token_type,
@@ -137,6 +96,7 @@ export async function authenticate(options = {}) {
           user_id: result.user_id,
           team_id: result.team_id,
           team_name: result.team_name,
+          team_domain: result.team_domain || extractDomainFromTeamName(result.team_name),
           created_at: result.created_at,
         };
 
@@ -145,7 +105,8 @@ export async function authenticate(options = {}) {
         console.log("");
         console.log("✅ 認証が完了しました！");
         console.log(`   ワークスペース: ${credentials.team_name}`);
-        console.log(`   トークンは ${CREDENTIALS_FILE} に保存されました`);
+        console.log(`   ドメイン: ${credentials.team_domain}.slack.com`);
+        console.log(`   保存先: ${getCredentialsDir()}/${credentials.team_id}.json`);
 
         return true;
       }
@@ -170,47 +131,79 @@ export async function authenticate(options = {}) {
 }
 
 /**
+ * team_nameからドメインを推測（フォールバック用）
+ */
+function extractDomainFromTeamName(teamName) {
+  return teamName
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
  * 認証状態を表示
  */
 export async function showStatus() {
-  const credentials = await loadCredentials();
+  const workspaces = await listWorkspaces();
 
   console.log("📋 認証状態");
   console.log("");
 
-  if (!credentials) {
+  if (workspaces.length === 0) {
     console.log("状態: ❌ 未認証");
     console.log("");
-    console.log("`npx slack-task-mcp auth` を実行して認証してください");
+    console.log("`npx @ignission/slack-task-mcp auth login` を実行して認証してください");
     return;
   }
 
-  console.log("状態: ✅ 認証済み");
-  console.log(`ユーザー ID: ${credentials.user_id}`);
-  console.log(`ワークスペース: ${credentials.team_name} (${credentials.team_id})`);
-  console.log(`認証日時: ${credentials.created_at}`);
-  console.log(`スコープ: ${credentials.scope}`);
+  console.log(`状態: ✅ ${workspaces.length} ワークスペース認証済み`);
+  console.log("");
+
+  for (const ws of workspaces) {
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`📌 ${ws.team_name}`);
+    console.log(`   ドメイン: ${ws.team_domain}.slack.com`);
+    console.log(`   チームID: ${ws.team_id}`);
+    console.log(`   ユーザーID: ${ws.user_id}`);
+    console.log(`   認証日時: ${ws.created_at}`);
+  }
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 }
 
 /**
  * ログアウト
+ * @param {object} options
+ * @param {string} [options.workspace] - ログアウトするワークスペース名またはドメイン
  */
-export async function logout() {
-  const credentials = await loadCredentials();
+export async function logout(options = {}) {
+  const { workspace } = options;
 
-  if (!credentials) {
+  if (workspace) {
+    // 指定ワークスペースのみログアウト
+    const deleted = await deleteCredentialsByDomain(workspace);
+
+    if (deleted) {
+      console.log(`✅ ワークスペース「${workspace}」からログアウトしました`);
+      return true;
+    }
+
+    console.error(`❌ ワークスペース「${workspace}」が見つかりません`);
+    console.log("");
+    console.log("`npx @ignission/slack-task-mcp auth status` で認証済みワークスペースを確認してください");
+    return false;
+  }
+
+  // 全ワークスペースをログアウト
+  const workspaces = await listWorkspaces();
+
+  if (workspaces.length === 0) {
     console.log("ℹ️ 認証情報はありません");
     return true;
   }
 
-  const deleted = await deleteCredentials();
+  const count = await deleteAllCredentials();
 
-  if (deleted) {
-    console.log("✅ ログアウトしました");
-    console.log(`   ${CREDENTIALS_FILE} を削除しました`);
-    return true;
-  } else {
-    console.error("❌ ログアウトに失敗しました");
-    return false;
-  }
+  console.log(`✅ ${count} ワークスペースからログアウトしました`);
+  return true;
 }
