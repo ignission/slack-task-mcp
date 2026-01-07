@@ -136,6 +136,13 @@ describe("EditedReplySchema", () => {
   });
 });
 
+// AsyncGeneratorを返すモックヘルパー
+function createMockGenerator(resultText) {
+  return async function* () {
+    yield { type: "result", subtype: "success", result: resultText };
+  };
+}
+
 describe("analyzeRequest", () => {
   it("Agent SDKを呼び出して分析結果を返す", async () => {
     const mockResponse = JSON.stringify({
@@ -154,7 +161,7 @@ describe("analyzeRequest", () => {
       priority: "high",
     });
 
-    query.mockResolvedValueOnce(mockResponse);
+    query.mockReturnValueOnce(createMockGenerator(mockResponse)());
 
     const result = await analyzeRequest("テストスレッド内容", "https://slack.com/test");
 
@@ -165,7 +172,7 @@ describe("analyzeRequest", () => {
   });
 
   it("JSONがない場合エラーを投げる", async () => {
-    query.mockResolvedValueOnce("JSONを含まない応答");
+    query.mockReturnValueOnce(createMockGenerator("JSONを含まない応答")());
 
     await expect(analyzeRequest("テスト")).rejects.toThrow("JSONが見つかりませんでした");
   });
@@ -189,7 +196,7 @@ describe("draftReply", () => {
       tone: "formal",
     });
 
-    query.mockResolvedValueOnce(mockResponse);
+    query.mockReturnValueOnce(createMockGenerator(mockResponse)());
 
     const result = await draftReply("完了した", undefined, undefined, "formal");
 
@@ -200,7 +207,7 @@ describe("draftReply", () => {
   });
 
   it("JSONがない場合エラーを投げる", async () => {
-    query.mockResolvedValueOnce("JSONを含まない応答");
+    query.mockReturnValueOnce(createMockGenerator("JSONを含まない応答")());
 
     await expect(draftReply("テスト")).rejects.toThrow("JSONが見つかりませんでした");
   });

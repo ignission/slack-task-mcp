@@ -71,14 +71,29 @@ export async function draftReply(draftText, threadContent, taskType, tone = "for
 
     prompt += `\n\nトーン: ${tone}`;
 
-    const result = await query({
+    const queryGenerator = query({
       prompt,
-      ...options,
-      signal: controller.signal,
+      options: {
+        ...options,
+        signal: controller.signal,
+      },
     });
 
+    // AsyncGeneratorからresultメッセージを取得
+    let resultText = "";
+    for await (const message of queryGenerator) {
+      if (message.type === "result" && message.subtype === "success") {
+        resultText = message.result;
+        break;
+      }
+    }
+
+    if (!resultText) {
+      throw new Error("添削結果が取得できませんでした");
+    }
+
     // レスポンスからJSON部分を抽出
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("添削結果のJSONが見つかりませんでした");
     }

@@ -61,14 +61,29 @@ export async function analyzeRequest(threadContent, threadUrl) {
       ? `以下のSlackスレッド（${threadUrl}）を分析してください:\n\n${threadContent}`
       : `以下のSlackスレッドを分析してください:\n\n${threadContent}`;
 
-    const result = await query({
+    const queryGenerator = query({
       prompt,
-      ...options,
-      signal: controller.signal,
+      options: {
+        ...options,
+        signal: controller.signal,
+      },
     });
 
+    // AsyncGeneratorからresultメッセージを取得
+    let resultText = "";
+    for await (const message of queryGenerator) {
+      if (message.type === "result" && message.subtype === "success") {
+        resultText = message.result;
+        break;
+      }
+    }
+
+    if (!resultText) {
+      throw new Error("分析結果が取得できませんでした");
+    }
+
     // レスポンスからJSON部分を抽出
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("分析結果のJSONが見つかりませんでした");
     }
