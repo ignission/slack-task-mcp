@@ -106,7 +106,7 @@ npx @ignission/slack-task-mcp auth login
 **Claude Code (ターミナル)**:
 
 ```bash
-claude mcp add slack-task -- npx @ignission/slack-task-mcp
+claude mcp add slack-task -- npx -y @ignission/slack-task-mcp
 ```
 
 **Claude Desktop** (`~/.claude/claude_desktop_config.json`):
@@ -116,7 +116,7 @@ claude mcp add slack-task -- npx @ignission/slack-task-mcp
   "mcpServers": {
     "slack-task": {
       "command": "npx",
-      "args": ["@ignission/slack-task-mcp"]
+      "args": ["-y", "@ignission/slack-task-mcp"]
     }
   }
 }
