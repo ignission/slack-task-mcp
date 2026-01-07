@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/agent-sdk-integration/requirements.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2026-01-07T04:29:53.623Z",
+      "trigger": "initial",
+      "approvalId": "approval_1767760193606_p1nr0lder",
+      "approvalTitle": "Agent SDK Integration - Requirements"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2026-01-07T04:39:34.370Z",
+      "trigger": "approved",
+      "approvalId": "approval_1767760193606_p1nr0lder",
+      "approvalTitle": "Agent SDK Integration - Requirements"
+    }
+  ]
+}

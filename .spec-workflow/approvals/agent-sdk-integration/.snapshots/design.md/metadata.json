@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/agent-sdk-integration/design.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2026-01-07T04:41:00.713Z",
+      "trigger": "initial",
+      "approvalId": "approval_1767760860701_w7r3hcl0v",
+      "approvalTitle": "Agent SDK Integration - Design"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2026-01-07T04:43:49.177Z",
+      "trigger": "approved",
+      "approvalId": "approval_1767760860701_w7r3hcl0v",
+      "approvalTitle": "Agent SDK Integration - Design"
+    }
+  ]
+}

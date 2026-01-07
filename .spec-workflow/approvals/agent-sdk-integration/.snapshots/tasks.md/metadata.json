@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/agent-sdk-integration/tasks.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2026-01-07T04:44:50.904Z",
+      "trigger": "initial",
+      "approvalId": "approval_1767761090895_3lh9y24t6",
+      "approvalTitle": "Agent SDK Integration - Tasks"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2026-01-07T04:46:34.969Z",
+      "trigger": "approved",
+      "approvalId": "approval_1767761090895_3lh9y24t6",
+      "approvalTitle": "Agent SDK Integration - Tasks"
+    }
+  ]
+}

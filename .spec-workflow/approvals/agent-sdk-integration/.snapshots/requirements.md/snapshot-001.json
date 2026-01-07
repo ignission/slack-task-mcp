@@ -1,0 +1,16 @@
+{
+  "id": "snapshot_1767760193623_edugsn5b0",
+  "approvalId": "approval_1767760193606_p1nr0lder",
+  "approvalTitle": "Agent SDK Integration - Requirements",
+  "version": 1,
+  "timestamp": "2026-01-07T04:29:53.623Z",
+  "trigger": "initial",
+  "status": "pending",
+  "content": "# Requirements Document: Agent SDK Integration\n\n## Introduction\n\nMCPサーバーの分析・添削機能をClaude Agent SDKで実装し、システムプロンプトによる高精度な処理を実現する。現在のMCPツールはdescriptionのみでコンテキストを渡すため精度にムラがあり、CLAUDE.mdがないリポジトリでは期待通りに動作しない問題を解決する。\n\n## Alignment with Product Vision\n\n### 解決する課題（product.mdより）\n- 「何求められてる？」が曖昧で固まる → **Agent SDKで高精度な目的明確化**\n- 「どう返せばいい？」で時間かかる → **システムプロンプト完備で安定した返信添削**\n\n### 設計原則との整合\n- **認知負荷の軽減**: エージェントが自律的に最適なフローを実行\n- **ワーキングメモリ節約**: 一度の呼び出しで分析→タスク化まで完結\n\n## Requirements\n\n### Requirement 1: 責務分離アーキテクチャ\n\n**User Story:** 開発者として、MCPサーバーとAgent SDKの責務を明確に分離したい。Slack API操作と知的処理を分けることで、保守性と拡張性を高める。\n\n#### Acceptance Criteria\n\n1. WHEN MCPツールが呼び出される THEN システム SHALL Slack API操作（スレッド取得、タスク保存、検索）のみを実行する\n2. WHEN 分析・添削が必要な場合 THEN システム SHALL Agent SDKエージェントを呼び出す\n3. IF エージェントがSlackデータを必要とする THEN エージェント SHALL MCPツール経由でアクセスする\n\n### Requirement 2: 分析エージェント\n\n**User Story:** ユーザーとして、Slackスレッドを渡すだけで高精度な依頼分析を受けたい。CLAUDE.mdがなくても同じ品質を得られるようにする。\n\n#### Acceptance Criteria\n\n1. WHEN スレッドURLが渡される THEN エージェント SHALL 目的・不明点・確認メッセージ案・優先度を生成する\n2. WHEN 分析を実行する THEN エージェント SHALL システムプロンプトに定義された5つのルール（目的明確化、不明点洗い出し、確認メッセージ案、タスク分解、優先度判定）に従う\n3. IF 不明点がある THEN エージェント SHALL 具体的な確認メッセージ案を生成する\n\n### Requirement 3: 返信添削エージェント\n\n**User Story:** ユーザーとして、下書きを渡すだけで構造化された返信を得たい。テンプレート（報告系/確認系/依頼系）に沿った出力を安定して受けられる。\n\n#### Acceptance Criteria\n\n1. WHEN 下書きテキストが渡される THEN エージェント SHALL 結論→根拠→アクションの構造に整理する\n2. WHEN タスクタイプが判別される THEN エージェント SHALL 適切なテンプレート（`<結論>`, `<確認したいこと>`, `<お願い>`形式）を適用する\n3. WHEN 添削が完了する THEN エージェント SHALL 変更ポイントと理由を明示する\n\n### Requirement 4: MCPからのエージェント呼び出し\n\n**User Story:** ユーザーとして、Claude Code/Desktopから今まで通りMCPツールとして使いたい。Agent SDKの導入を意識せずに使える。\n\n#### Acceptance Criteria\n\n1. WHEN `analyze_request` ツールが呼び出される THEN MCPサーバー SHALL 内部で分析エージェントを起動する\n2. WHEN `draft_reply` ツールが呼び出される THEN MCPサーバー SHALL 内部で返信添削エージェントを起動する\n3. IF エージェントがエラーを返す THEN MCPサーバー SHALL ユーザーに分かりやすいエラーメッセージを表示する\n\n### Requirement 5: 環境設定\n\n**User Story:** ユーザーとして、APIキーを一度設定すればAgent SDKを利用できるようにしたい。\n\n#### Acceptance Criteria\n\n1. WHEN `ANTHROPIC_API_KEY` 環境変数が設定されている THEN エージェント SHALL その認証情報を使用する\n2. IF APIキーが未設定 THEN システム SHALL 設定方法を案内するエラーメッセージを表示する\n3. WHEN 認証情報を保存する THEN システム SHALL `~/.slack-task-mcp/` に安全に保存する（mode: 0o600）\n\n## Non-Functional Requirements\n\n### Code Architecture and Modularity\n- **責務分離**: MCPツール（Slack操作）とエージェント（知的処理）を明確に分離\n- **単一責任**: 各エージェントは1つの機能（分析 or 添削）に集中\n- **疎結合**: エージェントはMCPクライアントとしてSlackツールを利用\n\n### Performance\n- エージェント呼び出しのレイテンシ: 10秒以内（通常の分析）\n- MCPサーバー起動時間への影響: 最小限（エージェントは遅延初期化）\n\n### Security\n- APIキーは環境変数または暗号化されたローカルファイルで管理\n- ユーザーのSlackデータは外部に送信しない（Anthropic APIへの送信のみ）\n\n### Reliability\n- エージェントのタイムアウト処理を実装\n- フォールバック: エージェント失敗時は従来のMCPツール動作を維持\n\n### Usability\n- 既存のMCPツールインターフェースを維持（後方互換性）\n- エラーメッセージは日本語で分かりやすく\n",
+  "fileStats": {
+    "size": 5363,
+    "lines": 91,
+    "lastModified": "2026-01-07T04:29:48.173Z"
+  },
+  "comments": []
+}
