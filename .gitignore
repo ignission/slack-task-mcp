@@ -26,3 +26,6 @@ pnpm-debug.log*
 # Claude Code credentials
 .claude/settings.local.json
 .claude/todos.json
+
+# Spec workflow approvals
+.spec-workflow/approvals/
