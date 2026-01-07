@@ -1,13 +1,13 @@
 # Tasks Document: Agent SDK Integration
 
-- [ ] 0. パッケージディレクトリのリネーム
+- [x] 0. パッケージディレクトリのリネーム
   - File: packages/mcp-server → packages/core
   - pnpm-workspace.yaml の更新
   - Purpose: Agent SDK導入に伴い、MCPサーバー以上の役割を持つため名称変更
   - _Requirements: 1_
   - _Prompt: Implement the task for spec agent-sdk-integration, first run spec-workflow-guide to get the workflow guide then implement the task: Role: DevOps Engineer | Task: Rename packages/mcp-server to packages/core, update pnpm-workspace.yaml and any references | Restrictions: Keep npm package name as slack-task-mcp, update only directory structure | Success: Directory renamed, pnpm install works, no broken imports | After completion: Set task to [-] in tasks.md, log implementation with log-implementation tool, then mark as [x]_
 
-- [ ] 1. Agent SDKパッケージのインストール
+- [x] 1. Agent SDKパッケージのインストール
   - File: packages/core/package.json
   - `@anthropic-ai/claude-agent-sdk` を依存関係に追加
   - Purpose: Agent SDKを利用可能にする
