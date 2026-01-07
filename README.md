@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/slack-task-mcp"><img src="https://img.shields.io/npm/v/slack-task-mcp" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@ignission/slack-task-mcp"><img src="https://img.shields.io/npm/v/@ignission/slack-task-mcp" alt="npm version"></a>
   <a href="https://opensource.org/licenses/ISC"><img src="https://img.shields.io/badge/License-ISC-blue.svg" alt="License: ISC"></a>
 </p>
 
@@ -96,7 +96,7 @@ graph TB
 ### 1. Slack認証
 
 ```bash
-npx slack-task-mcp auth
+npx @ignission/slack-task-mcp auth
 ```
 
 ブラウザが開き、Slackの認証画面が表示されます。認証が完了すると、トークンは `~/.slack-task-mcp/credentials.json` に保存されます。
@@ -106,7 +106,7 @@ npx slack-task-mcp auth
 **Claude Code (ターミナル)**:
 
 ```bash
-claude mcp add slack-task -- npx slack-task-mcp
+claude mcp add slack-task -- npx @ignission/slack-task-mcp
 ```
 
 **Claude Desktop** (`~/.claude/claude_desktop_config.json`):
@@ -116,7 +116,7 @@ claude mcp add slack-task -- npx slack-task-mcp
   "mcpServers": {
     "slack-task": {
       "command": "npx",
-      "args": ["slack-task-mcp"]
+      "args": ["@ignission/slack-task-mcp"]
     }
   }
 }
@@ -235,9 +235,9 @@ slack-task-mcp/
 ### Slack APIエラー
 
 ```bash
-npx slack-task-mcp auth status  # 認証状態を確認
-npx slack-task-mcp auth         # 再認証
-npx slack-task-mcp auth logout  # ログアウト
+npx @ignission/slack-task-mcp auth status  # 認証状態を確認
+npx @ignission/slack-task-mcp auth         # 再認証
+npx @ignission/slack-task-mcp auth logout  # ログアウト
 ```
 
 ### MCPサーバーが認識されない
