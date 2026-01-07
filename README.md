@@ -93,13 +93,7 @@ graph TB
 
 ## Quick Start
 
-### 1. インストール
-
-```bash
-npm install -g slack-task-mcp
-```
-
-### 2. Slack認証
+### 1. Slack認証
 
 ```bash
 npx slack-task-mcp auth
@@ -107,7 +101,7 @@ npx slack-task-mcp auth
 
 ブラウザが開き、Slackの認証画面が表示されます。認証が完了すると、トークンは `~/.slack-task-mcp/credentials.json` に保存されます。
 
-### 3. Claude Code / Claude Desktop の設定
+### 2. Claude Code / Claude Desktop の設定
 
 **Claude Code (ターミナル)**:
 
@@ -115,9 +109,7 @@ npx slack-task-mcp auth
 claude mcp add slack-task -- npx slack-task-mcp
 ```
 
-**Claude Desktop**:
-
-`~/.claude/claude_desktop_config.json` に追加:
+**Claude Desktop** (`~/.claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -130,7 +122,7 @@ claude mcp add slack-task -- npx slack-task-mcp
 }
 ```
 
-### 4. 再起動
+### 3. 再起動
 
 設定を反映するためにClaude Code / Claude Desktopを再起動してください。
 
