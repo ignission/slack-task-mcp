@@ -1,9 +1,19 @@
-# 🧠 Slack Task MCP
+<p align="center">
+  <h1 align="center">🧠 Slack Task MCP</h1>
+</p>
 
-**メンションから着手までの摩擦をゼロに**
+<p align="center">
+  <strong>メンションから着手までの摩擦をゼロに</strong>
+</p>
 
-[![npm version](https://img.shields.io/npm/v/slack-task-mcp)](https://www.npmjs.com/package/slack-task-mcp)
-[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
+<p align="center">
+  <a href="https://www.npmjs.com/package/slack-task-mcp"><img src="https://img.shields.io/npm/v/slack-task-mcp" alt="npm version"></a>
+  <a href="https://opensource.org/licenses/ISC"><img src="https://img.shields.io/badge/License-ISC-blue.svg" alt="License: ISC"></a>
+</p>
+
+<p align="center">
+  ADHDの特性を持つユーザーのために設計されたMCPサーバー
+</p>
 
 ---
 
@@ -11,19 +21,16 @@
 
 Slackのメンションがたまると、どこから手を付けていいか迷う。難しい依頼が来ると、何を聞けばいいかわからず固まる。返信を書くのに時間がかかる——そんな経験はありませんか？
 
-**Slack Task MCP** は、ADHDの特性を持つユーザーのために設計されたMCPサーバーです。
+<p align="center">
 
-```
-😵 メンション来た
-     ↓
-❓「何求められてる？」が曖昧で固まる  →  🎯 目的の明確化
-     ↓
-❓「何聞けばいい？」がわからない      →  📝 不明点の洗い出し + 確認メッセージ案
-     ↓
-❓「どう返せばいい？」で時間かかる    →  ✍️ 返信メッセージの添削・構造化
-     ↓
-❓「次何する？」で迷う                →  ⏭️ ネクストアクション提示
-```
+| 😵 困りごと | ➡️ | 🎯 解決 |
+|:---:|:---:|:---:|
+| 「何求められてる？」が曖昧で固まる | → | 目的の明確化 |
+| 「何聞けばいい？」がわからない | → | 不明点の洗い出し + 確認メッセージ案 |
+| 「どう返せばいい？」で時間かかる | → | 返信メッセージの添削・構造化 |
+| 「次何する？」で迷う | → | ネクストアクション提示 |
+
+</p>
 
 ---
 
