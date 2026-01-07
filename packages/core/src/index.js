@@ -16,66 +16,20 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { WebClient } from "@slack/web-api";
 import { z } from "zod";
 import { loadCredentials } from "./auth.js";
+import { analyzeRequest } from "./agents/analyze.js";
+import { draftReply } from "./agents/draft-reply.js";
 
 // データ保存先
 const DATA_DIR = path.join(os.homedir(), ".slack-task-mcp");
 const TASKS_FILE = path.join(DATA_DIR, "tasks.json");
 
 // ============================================
-// analyze_request 用 Zodスキーマ
-// ============================================
-
-const UnclearPointSchema = z.object({
-  question: z.string().max(200).describe("確認すべき質問"),
-  impact: z.string().max(200).describe("この点が不明だと何が困るか"),
-  suggested_options: z.array(z.string()).optional().describe("想定される選択肢"),
-});
-
-const NextActionSchema = z.object({
-  action: z.string().max(200).describe("具体的なアクション内容"),
-  estimated_time: z.number().min(1).max(30).describe("推定所要時間（分）"),
-  reason: z.string().nullable().optional().describe("なぜこれが最初のアクションなのか"),
-});
-
-const PrioritySchema = z.enum(["high", "medium", "low"]);
-
-const AnalysisResultSchema = z.object({
-  purpose: z.string().max(500).describe("依頼の目的（1文で言語化）"),
-  deliverable: z.string().nullable().optional().describe("成果物"),
-  deadline: z.string().nullable().optional().describe("期限"),
-  unclear_points: z.array(UnclearPointSchema).describe("不明点のリスト"),
-  confirmation_message: z.string().nullable().optional().describe("確認メッセージ案"),
-  next_action: NextActionSchema.describe("ネクストアクション"),
-  priority: PrioritySchema.describe("優先度"),
-});
-
-// ============================================
-// draft_reply 用 Zodスキーマ
+// ツールパラメータ用 Zodスキーマ
+// ※ 分析/添削の結果スキーマはagents/配下に移動
 // ============================================
 
 const TaskTypeSchema = z.enum(["report", "confirm", "request"]);
 const ToneSchema = z.enum(["formal", "casual"]);
-const ChangeTypeSchema = z.enum(["structure", "simplify", "clarify", "tone", "logic", "add"]);
-
-const ChangeSchema = z.object({
-  type: ChangeTypeSchema.describe("変更の種類"),
-  description: z.string().max(200).describe("変更内容の説明"),
-  reason: z.string().max(200).describe("変更の理由"),
-});
-
-const ReplyStructureSchema = z.object({
-  conclusion: z.string().max(500).describe("結論（何を伝えたいか）"),
-  reasoning: z.string().nullable().optional().describe("根拠（なぜそう言えるか）"),
-  action: z.string().nullable().optional().describe("アクション"),
-});
-
-const EditedReplySchema = z.object({
-  task_type: TaskTypeSchema.describe("タスクタイプ"),
-  after: z.string().describe("添削後のテキスト"),
-  structure: ReplyStructureSchema.describe("構造化された返信"),
-  changes: z.array(ChangeSchema).describe("変更ポイント"),
-  tone: ToneSchema.describe("適用されたトーン"),
-});
 
 // ============================================
 // search_slack 用 Zodスキーマ
@@ -673,14 +627,16 @@ function formatAnalysisResult(analysis) {
 
 server.tool(
   "analyze_request",
-  "Slackスレッドの依頼を分析し、目的・不明点・確認メッセージ案・ネクストアクションを構造化して返す",
+  "Slackスレッドの依頼をAgent SDKで分析し、目的・不明点・確認メッセージ案・ネクストアクションを構造化して返す",
   {
     thread_content: z.string().describe("分析対象のSlackスレッド内容（get_slack_threadの出力）"),
     thread_url: z.string().optional().describe("SlackスレッドのURL（参照用）"),
-    analysis: AnalysisResultSchema.describe("Claudeが生成した分析結果"),
   },
-  async ({ thread_content, thread_url, analysis }) => {
+  async ({ thread_content, thread_url }) => {
     try {
+      // Agent SDKで分析を実行
+      const analysis = await analyzeRequest(thread_content, thread_url);
+
       // 分析結果をフォーマット
       const formatted = formatAnalysisResult(analysis);
 
@@ -697,7 +653,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `❌ 分析結果の処理中にエラーが発生しました: ${err.message}`,
+            text: `❌ 分析中にエラーが発生しました: ${err.message}`,
           },
         ],
       };
@@ -803,18 +759,20 @@ function formatEditedReply(draftText, editedReply) {
 
 server.tool(
   "draft_reply",
-  "返信の下書きを添削し、結論→根拠→アクションの構造に整理して返す",
+  "返信の下書きをAgent SDKで添削し、結論→根拠→アクションの構造に整理して返す",
   {
     draft_text: z.string().max(2000).describe("添削対象の下書きテキスト"),
     task_type: TaskTypeSchema.optional().describe("タスクタイプ（省略時は自動判定）"),
     tone: ToneSchema.optional().describe("トーン（デフォルト: formal）"),
     thread_content: z.string().optional().describe("文脈用のスレッド内容"),
-    edited_reply: EditedReplySchema.describe("Claudeが生成した添削結果"),
   },
-  async ({ draft_text, task_type, tone, thread_content, edited_reply }) => {
+  async ({ draft_text, task_type, tone = "formal", thread_content }) => {
     try {
+      // Agent SDKで添削を実行
+      const editedReply = await draftReply(draft_text, thread_content, task_type, tone);
+
       // 添削結果をフォーマット
-      const formatted = formatEditedReply(draft_text, edited_reply);
+      const formatted = formatEditedReply(draft_text, editedReply);
 
       return {
         content: [
@@ -829,7 +787,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `❌ 添削結果の処理中にエラーが発生しました: ${err.message}`,
+            text: `❌ 添削中にエラーが発生しました: ${err.message}`,
           },
         ],
       };
