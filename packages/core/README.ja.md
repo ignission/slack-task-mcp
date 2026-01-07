@@ -4,7 +4,7 @@ Slack タスク管理 MCP サーバー for Claude Code / Claude Desktop
 
 [![npm version](https://badge.fury.io/js/slack-task-mcp.svg)](https://www.npmjs.com/package/slack-task-mcp)
 
-[English](./README.md)
+[English](https://github.com/ignission/slack-task-mcp/blob/main/packages/core/README.md)
 
 ## こんな人向け
 
