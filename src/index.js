@@ -697,7 +697,7 @@ function formatAnalysisResult(analysis) {
 
 server.tool(
   "analyze_request",
-  "Slackスレッドの依頼をAgent SDKで分析し、目的・不明点・確認メッセージ案・ネクストアクションを構造化して返す",
+  "Slackスレッドの依頼をAgent SDKで分析し、目的・不明点・確認メッセージ案・ネクストアクションを構造化して返す。結果を元にユーザーに選択肢を提示する場合は、テキストではなくAskUserQuestionツールを使って選択UIを表示すること",
   {
     thread_content: z.string().describe("分析対象のSlackスレッド内容（get_slack_threadの出力）"),
     thread_url: z.string().optional().describe("SlackスレッドのURL（参照用）"),
@@ -829,7 +829,7 @@ function formatEditedReply(draftText, editedReply) {
 
 server.tool(
   "draft_reply",
-  "返信の下書きをAgent SDKで添削し、結論→根拠→アクションの構造に整理して返す",
+  "返信の下書きをAgent SDKで添削し、結論→根拠→アクションの構造に整理して返す。ユーザーに確認や選択を求める場合は、テキストではなくAskUserQuestionツールを使って選択UIを表示すること",
   {
     draft_text: z.string().max(2000).describe("添削対象の下書きテキスト"),
     task_type: TaskTypeSchema.optional().describe("タスクタイプ（省略時は自動判定）"),
