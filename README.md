@@ -193,7 +193,7 @@ https://xxx.slack.com/archives/C12345678/p1234567890123456
 | **Claude Agent SDK** | 依頼分析・返信添削の AI 処理 |
 | **Slack Web API** | Slack連携（User Token使用） |
 | **Zod** | スキーマバリデーション |
-| **Cloudflare Workers** | OAuth認証サーバー |
+| **Cloudflare Workers** | OAuth認証（トークン交換） |
 
 ---
 
@@ -201,19 +201,19 @@ https://xxx.slack.com/archives/C12345678/p1234567890123456
 
 ```
 slack-task-mcp/
-├── packages/
-│   ├── core/                    # MCPサーバー本体
-│   │   └── src/
-│   │       ├── index.js         # サーバーエントリポイント
-│   │       ├── cli.js           # CLIコマンド
-│   │       ├── auth.js          # OAuth認証
-│   │       └── agents/          # Agent SDK エージェント
-│   │           ├── index.js     # 共通設定
-│   │           ├── analyze.js   # 依頼分析
-│   │           └── draft-reply.js # 返信添削
-│   └── oauth-worker/            # Cloudflare Workers (OAuth)
-│       └── src/index.js
-├── pnpm-workspace.yaml
+├── src/
+│   ├── index.js         # MCPサーバーエントリポイント
+│   ├── cli.js           # CLIコマンド
+│   ├── auth.js          # OAuth認証（ハイブリッド方式）
+│   ├── credentials.js   # 認証情報管理
+│   ├── paths.js         # パス管理（XDG準拠）
+│   └── agents/          # Agent SDK エージェント
+│       ├── index.js     # 共通設定
+│       ├── analyze.js   # 依頼分析
+│       └── draft-reply.js # 返信添削
+├── worker/              # Cloudflare Workers（トークン交換）
+│   ├── index.js
+│   └── wrangler.toml
 └── package.json
 ```
 
