@@ -34,6 +34,112 @@ When Slack mentions pile up, it's hard to know where to start. Complex requests 
 
 ---
 
+## Before / After
+
+```
+❌ Before
+Mention arrives → "What do they want?" → Freeze → Postpone → Forget
+
+✅ After
+Mention arrives → Paste thread URL → Purpose, unknowns & next action organized → Start immediately
+```
+
+---
+
+## Who is this for?
+
+- 💭 You read a Slack message multiple times but still don't know where to start
+- 📝 Writing replies takes forever because you overthink the wording
+- 🔄 You postpone complex requests and end up forgetting them
+- 🧠 You have ADHD traits and struggle with task initiation
+
+---
+
+## Use Cases
+
+### 1. Break down a vague request
+
+> "Can you handle the quarterly report?"
+
+**What this tool does:**
+- Clarifies what "handle" means (create? review? present?)
+- Identifies unknowns (deadline? format? audience?)
+- Generates a confirmation message to ask the right questions
+- Breaks the task into 5-minute steps once clarified
+
+### 2. Structure a messy reply
+
+> "Done with the thing. Attached. Check it."
+
+**After editing:**
+> "I've completed the quarterly report and attached it. Could you review it when you have a moment? Let me know if any changes are needed."
+
+- Conclusion → Reasoning → Action structure
+- Polite but concise tone
+
+### 3. Resume work after interruption
+
+> "What was I working on for that client request?"
+
+**What this tool does:**
+- Searches past Slack threads
+- Shows task progress and next steps
+- No need to re-read the entire thread
+
+### 4. Triage multiple mentions
+
+When you have 10+ unread mentions:
+- Analyze each thread quickly
+- Identify priorities (blocking others? deadline?)
+- Generate confirmation messages for unclear ones
+- Save as tasks and tackle one by one
+
+---
+
+## Demo
+
+```
+You: Analyze this thread https://xxx.slack.com/archives/C123/p456
+
+Claude: ## Request Analysis
+
+### Summary
+- **Purpose**: Create sales report for Q4
+- **Deliverable**: PDF report with charts
+- **Deadline**: Next Friday
+
+### Unknowns
+- ❓ Which metrics to include?
+  - Impact: Can't start without this
+  - Options: Revenue only / Revenue + costs / Full P&L
+
+### Suggested Confirmation Message
+"Thanks for the request! Quick question - should I include just revenue,
+or the full P&L breakdown? Also, should I use the same template as Q3?"
+
+### Next Action
+📌 Send confirmation message (2 min)
+
+---
+
+You: They said full P&L, same template. Break it down and save.
+
+Claude: ✅ Task saved!
+
+### Q4 Sales Report
+1. ☐ Open Q3 template and duplicate (2 min)
+2. ☐ Export Q4 data from dashboard (3 min)
+3. ☐ Paste revenue numbers (5 min)
+4. ☐ Paste cost numbers (5 min)
+5. ☐ Update charts (5 min)
+6. ☐ Write summary paragraph (5 min)
+7. ☐ Export as PDF and send (2 min)
+
+📌 Start with step 1 - just 2 minutes!
+```
+
+---
+
 ## Architecture
 
 ```
