@@ -15,6 +15,10 @@
   An MCP server designed for users with ADHD traits
 </p>
 
+<p align="center">
+  <a href="README.ja.md">日本語</a>
+</p>
+
 ---
 
 ## Why
