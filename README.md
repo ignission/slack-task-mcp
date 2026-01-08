@@ -1,9 +1,9 @@
 <p align="center">
-  <h1 align="center">🧠 Slack Task MCP</h1>
+  <h1 align="center">Slack Task MCP</h1>
 </p>
 
 <p align="center">
-  <strong>メンションから着手までの摩擦をゼロに</strong>
+  <strong>Zero friction from mention to action</strong>
 </p>
 
 <p align="center">
@@ -12,98 +12,85 @@
 </p>
 
 <p align="center">
-  ADHDの特性を持つユーザーのために設計されたMCPサーバー
+  An MCP server designed for users with ADHD traits
 </p>
 
 ---
 
 ## Why
 
-Slackのメンションがたまると、どこから手を付けていいか迷う。難しい依頼が来ると、何を聞けばいいかわからず固まる。返信を書くのに時間がかかる——そんな経験はありませんか？
+When Slack mentions pile up, it's hard to know where to start. Complex requests leave you frozen, unsure what to ask. Writing replies takes forever. Sound familiar?
 
-<p align="center">
-
-| 😵 困りごと | ➡️ | 🎯 解決 |
-|:---:|:---:|:---:|
-| 「何求められてる？」が曖昧で固まる | → | 目的の明確化 |
-| 「何聞けばいい？」がわからない | → | 不明点の洗い出し + 確認メッセージ案 |
-| 「どう返せばいい？」で時間かかる | → | 返信メッセージの添削・構造化 |
-| 「次何する？」で迷う | → | ネクストアクション提示 |
-
-</p>
+| Problem | Solution |
+|:--------|:---------|
+| "What do they want?" is unclear | Clarify the purpose |
+| "What should I ask?" is unknown | Identify unknowns + draft confirmation messages |
+| "How should I reply?" takes time | Edit & structure reply messages |
+| "What's next?" causes paralysis | Provide next actions |
 
 ---
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph Client ["Claude Desktop / Claude Code"]
-        MCP["MCP Client"]
-    end
-
-    subgraph Core ["Slack Task MCP"]
-        Server["MCP Server<br/>(stdio transport)"]
-
-        subgraph Tools ["MCPツール"]
-            SlackTools["🔗 Slack連携<br/>get_slack_thread<br/>search_slack"]
-            TaskTools["📋 タスク管理<br/>save/list/search<br/>complete_step"]
-            AITools["🤖 AI支援<br/>analyze_request<br/>draft_reply"]
-        end
-
-        subgraph AgentSDK ["Agent SDK Layer"]
-            Analyze["analyze.js<br/>依頼分析"]
-            Draft["draft-reply.js<br/>返信添削"]
-        end
-    end
-
-    subgraph External ["外部サービス"]
-        SlackAPI["Slack API"]
-        ClaudeAPI["Claude API"]
-    end
-
-    MCP -->|MCP Protocol| Server
-    Server --> Tools
-    AITools --> AgentSDK
-    Analyze -->|query| ClaudeAPI
-    Draft -->|query| ClaudeAPI
-    SlackTools -->|User Token| SlackAPI
 ```
-
-**ポイント:**
-- **MCP Server**: Slack APIとのやり取り、タスク管理を担当
-- **Agent SDK Layer**: Claude APIを使った高度な分析・添削処理を担当
+┌─────────────────────────────────────────────────────────────┐
+│  Claude Desktop / Claude Code                               │
+│  └── MCP Client                                             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ MCP Protocol
+┌──────────────────────────▼──────────────────────────────────┐
+│  Slack Task MCP Server                                      │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  MCP Tools                                             │ │
+│  │  • get_slack_thread  • save_task     • analyze_request │ │
+│  │  • search_slack      • list_tasks    • draft_reply     │ │
+│  │                      • complete_step                   │ │
+│  └────────────────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │  Agent SDK Layer (AI-powered analysis)                 │ │
+│  │  • analyze.js → Request analysis                       │ │
+│  │  • draft-reply.js → Reply editing                      │ │
+│  └────────────────────────────────────────────────────────┘ │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+          ┌────────────────┴────────────────┐
+          ▼                                 ▼
+   ┌─────────────┐                   ┌─────────────┐
+   │  Slack API  │                   │  Claude API │
+   │ (User Token)│                   │ (Agent SDK) │
+   └─────────────┘                   └─────────────┘
+```
 
 ---
 
 ## Features
 
-| ツール | 機能 | Agent SDK |
-|--------|------|:---------:|
-| `get_slack_thread` | SlackスレッドのURLからメッセージを取得 | - |
-| `analyze_request` | 依頼を分析し、目的・不明点・確認案を生成 | ✅ |
-| `draft_reply` | 返信を添削し、ロジカルに構造化 | ✅ |
-| `save_task` | タスクを保存（5分以内のステップに分解） | - |
-| `list_tasks` | アクティブなタスク一覧を表示 | - |
-| `search_tasks` | キーワード・日付でタスクを検索 | - |
-| `complete_step` | ステップを完了にする | - |
-| `search_slack` | Slackメッセージをキーワードで検索 | - |
+| Tool | Description | Agent SDK |
+|------|-------------|:---------:|
+| `get_slack_thread` | Fetch messages from a Slack thread URL | - |
+| `analyze_request` | Analyze requests, identify purpose & unknowns | ✅ |
+| `draft_reply` | Edit and structure replies logically | ✅ |
+| `save_task` | Save tasks (broken into <5 min steps) | - |
+| `list_tasks` | Show active task list | - |
+| `search_tasks` | Search tasks by keyword/date | - |
+| `complete_step` | Mark a step as complete | - |
+| `search_slack` | Search Slack messages by keyword | - |
 
 ---
 
 ## Quick Start
 
-### 1. Slack認証
+### 1. Authenticate with Slack
 
 ```bash
-npx @ignission/slack-task-mcp auth login
+npx -y @ignission/slack-task-mcp auth login
 ```
 
-ブラウザが開き、Slackの認証画面が表示されます。複数のワークスペースを認証する場合は、このコマンドを繰り返し実行してください。
+A browser will open for Slack authentication. Repeat for multiple workspaces.
 
-### 2. Claude Code / Claude Desktop の設定
+### 2. Configure Claude Code / Claude Desktop
 
-**Claude Code (ターミナル)**:
+**Claude Code (Terminal)**:
 
 ```bash
 claude mcp add slack-task -- npx -y @ignission/slack-task-mcp
@@ -122,78 +109,78 @@ claude mcp add slack-task -- npx -y @ignission/slack-task-mcp
 }
 ```
 
-### 3. 再起動
+### 3. Restart
 
-設定を反映するためにClaude Code / Claude Desktopを再起動してください。
+Restart Claude Code / Claude Desktop to apply the configuration.
 
 ---
 
 ## Usage
 
-### 基本ワークフロー
+### Basic Workflow
 
 ```
-1. get_slack_thread  →  スレッド取得（文脈DB化）
-2. analyze_request   →  目的・不明点・確認案を生成
-3. draft_reply       →  返信の下書きを添削・構造化
-4. save_task         →  タスクとして保存
-5. complete_step     →  進捗管理
+1. get_slack_thread  →  Fetch thread (context DB)
+2. analyze_request   →  Generate purpose, unknowns, confirmation drafts
+3. draft_reply       →  Edit and structure reply drafts
+4. save_task         →  Save as task
+5. complete_step     →  Track progress
 ```
 
-### 使用例
+### Examples
 
-#### スレッドを取得・分析
+#### Fetch & Analyze a Thread
 
 ```
-このSlackスレッドを分析して:
+Analyze this Slack thread:
 https://xxx.slack.com/archives/C12345678/p1234567890123456
 ```
 
-#### タスクを保存
+#### Save a Task
 
 ```
-このタスクを5分以内のステップに分解して保存して
+Break this down into steps under 5 minutes and save it
 ```
 
-#### 返信を添削
+#### Edit a Reply
 
 ```
-この返信を添削して「レポートできました。添付します。確認お願いします。」
+Edit this reply: "Report is done. Attached. Please check."
 ```
 
-#### タスク一覧を確認
+#### List Tasks
 
 ```
-タスク一覧を見せて
+Show my task list
 ```
 
-#### ステップを完了
+#### Complete a Step
 
 ```
-ステップ1を完了にして
+Mark step 1 as complete
 ```
 
 ---
 
-## ADHDフレンドリー設計
+## ADHD-Friendly Design
 
-- **5分以内で終わるステップに分解** — 小さな達成感を積み重ねる
-- **最初のステップは最も簡単なものに** — 着手のハードルを下げる
-- **途中で止めてもOKな区切りを明示** — 中断しても再開しやすい
-- **Slackを文脈DBとして活用** — 「あの話どうなったっけ」をClaudeに聞ける
+- **Break into <5 min steps** — Build small wins
+- **Easiest step first** — Lower the barrier to start
+- **Clear stopping points** — Easy to pause and resume
+- **Slack as context DB** — Ask Claude "what happened with that?"
 
 ---
 
 ## Tech Stack
 
-| 技術 | 用途 |
-|------|------|
-| **Node.js** (ES Modules) | ランタイム |
-| **MCP Protocol** | Claude Code / Desktop との通信 |
-| **Claude Agent SDK** | 依頼分析・返信添削の AI 処理 |
-| **Slack Web API** | Slack連携（User Token使用） |
-| **Zod** | スキーマバリデーション |
-| **Cloudflare Workers** | OAuth認証（トークン交換） |
+| Technology | Purpose |
+|------------|---------|
+| **Node.js** (ES Modules) | Runtime |
+| **MCP Protocol** | Communication with Claude Code/Desktop |
+| **Claude Agent SDK** | AI-powered request analysis & reply editing |
+| **Slack Web API** | Slack integration (User Token) |
+| **Zod** | Schema validation |
+| **Cloudflare Workers** | OAuth authentication (token exchange) |
 
 ---
 
@@ -202,16 +189,16 @@ https://xxx.slack.com/archives/C12345678/p1234567890123456
 ```
 slack-task-mcp/
 ├── src/
-│   ├── index.js         # MCPサーバーエントリポイント
-│   ├── cli.js           # CLIコマンド
-│   ├── auth.js          # OAuth認証（ハイブリッド方式）
-│   ├── credentials.js   # 認証情報管理
-│   ├── paths.js         # パス管理（XDG準拠）
-│   └── agents/          # Agent SDK エージェント
-│       ├── index.js     # 共通設定
-│       ├── analyze.js   # 依頼分析
-│       └── draft-reply.js # 返信添削
-├── worker/              # Cloudflare Workers（トークン交換）
+│   ├── index.js         # MCP server entry point
+│   ├── cli.js           # CLI commands
+│   ├── auth.js          # OAuth authentication (hybrid)
+│   ├── credentials.js   # Credential management
+│   ├── paths.js         # Path management (XDG compliant)
+│   └── agents/          # Agent SDK agents
+│       ├── index.js     # Common settings
+│       ├── analyze.js   # Request analysis
+│       └── draft-reply.js # Reply editing
+├── worker/              # Cloudflare Workers (token exchange)
 │   ├── index.js
 │   └── wrangler.toml
 └── package.json
@@ -221,45 +208,45 @@ slack-task-mcp/
 
 ## Data Storage
 
-XDG Base Directory Specification に準拠した場所にデータを保存します:
+Data is stored following XDG Base Directory Specification:
 
 ```
 ~/.local/share/slack-task-mcp/
 ├── credentials/
-│   ├── T01234567.json     # ワークスペースごとの認証情報
+│   ├── T01234567.json     # Per-workspace credentials
 │   └── T98765432.json
-└── tasks.json              # タスクデータ
+└── tasks.json              # Task data
 ```
 
-環境変数 `XDG_DATA_HOME` が設定されている場合は、そのパスが使用されます。
+If `XDG_DATA_HOME` is set, that path will be used instead.
 
 ---
 
 ## Troubleshooting
 
-### Slack APIエラー
+### Slack API Errors
 
 ```bash
-npx @ignission/slack-task-mcp auth status                # 認証状態を確認
-npx @ignission/slack-task-mcp auth login                 # 新しいワークスペースを認証
-npx @ignission/slack-task-mcp auth logout                # 全ワークスペースからログアウト
-npx @ignission/slack-task-mcp auth logout -w mycompany   # 特定のワークスペースのみログアウト
+npx -y @ignission/slack-task-mcp auth status              # Check auth status
+npx -y @ignission/slack-task-mcp auth login               # Authenticate new workspace
+npx -y @ignission/slack-task-mcp auth logout              # Logout from all workspaces
+npx -y @ignission/slack-task-mcp auth logout -w mycompany # Logout from specific workspace
 ```
 
-### MCPサーバーが認識されない
+### MCP Server Not Recognized
 
-- 設定ファイルのパスが正しいか確認
-- Claude Code / Claude Desktopを再起動したか確認
+- Verify the config file path is correct
+- Restart Claude Code / Claude Desktop
 
-### プライベートチャンネルが読めない
+### Can't Read Private Channels
 
-- あなたが参加しているチャンネルのみ読み取り可能です
+- You can only read channels you're a member of
 
 ---
 
 ## Contributing
 
-Issue や PR は歓迎です！
+Issues and PRs are welcome!
 
 ---
 
