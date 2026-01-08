@@ -3,10 +3,12 @@
 /**
  * OAuth 認証モジュール
  *
- * Cloudflare Workers を使った OAuth 認証フロー
+ * ハイブリッド方式: Cloudflare Worker + ローカルサーバー
+ * - Worker: トークン交換（Client Secretを安全に保持）
+ * - ローカルサーバー: コールバック受け取り（KV不要で即時反映）
  */
 
-import crypto from "node:crypto";
+import http from "node:http";
 import open from "open";
 import {
   listWorkspaces,
@@ -18,117 +20,12 @@ import {
 
 // 定数
 const AUTH_TIMEOUT = 5 * 60 * 1000; // 5分
-const POLL_INTERVAL = 2000; // 2秒
+const DEFAULT_PORT = 8888;
+const MAX_PORT_ATTEMPTS = 10;
 
 // OAuth Worker URL
 const OAUTH_WORKER_URL =
   process.env.OAUTH_WORKER_URL || "https://slack-task-mcp-oauth.ignission.workers.dev";
-
-/**
- * セッション ID を生成
- */
-function generateSessionId() {
-  return crypto.randomBytes(16).toString("hex");
-}
-
-/**
- * Worker にポーリングしてトークンを取得
- */
-async function pollForToken(sessionId) {
-  const pollUrl = `${OAUTH_WORKER_URL}/poll?session_id=${sessionId}`;
-
-  const response = await fetch(pollUrl);
-  const data = await response.json();
-
-  return data;
-}
-
-/**
- * OAuth 認証フローを実行
- * Cloudflare Workers を使用
- */
-export async function authenticate(options = {}) {
-  const noBrowser = options.noBrowser || false;
-
-  // セッション ID を生成
-  const sessionId = generateSessionId();
-
-  // Worker の認証 URL を生成
-  const authUrl = `${OAUTH_WORKER_URL}/auth?session_id=${sessionId}`;
-
-  console.log("🔐 Slack OAuth 認証を開始します...");
-  console.log("");
-
-  if (noBrowser) {
-    console.log("以下の URL をブラウザで開いてください:");
-    console.log("");
-    console.log(authUrl);
-  } else {
-    console.log("ブラウザで Slack ログイン画面を開いています...");
-    try {
-      await open(authUrl);
-    } catch (_err) {
-      console.log("");
-      console.log("ブラウザを自動で開けませんでした。以下の URL を手動で開いてください:");
-      console.log("");
-      console.log(authUrl);
-    }
-  }
-
-  console.log("");
-  console.log("認証が完了するまで待機中...");
-
-  // ポーリング開始
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < AUTH_TIMEOUT) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
-
-    try {
-      const result = await pollForToken(sessionId);
-
-      if (result.status === "success") {
-        // credentials を保存（team_domain を追加）
-        const credentials = {
-          access_token: result.access_token,
-          token_type: result.token_type,
-          scope: result.scope,
-          user_id: result.user_id,
-          team_id: result.team_id,
-          team_name: result.team_name,
-          team_domain: result.team_domain || extractDomainFromTeamName(result.team_name),
-          created_at: result.created_at,
-        };
-
-        await saveCredentials(credentials);
-
-        console.log("");
-        console.log("✅ 認証が完了しました！");
-        console.log(`   ワークスペース: ${credentials.team_name}`);
-        console.log(`   ドメイン: ${credentials.team_domain}.slack.com`);
-        console.log(`   保存先: ${getCredentialsDir()}/${credentials.team_id}.json`);
-
-        return true;
-      }
-
-      if (result.status === "error") {
-        console.error("");
-        console.error(`❌ 認証エラー: ${result.error}`);
-        return false;
-      }
-
-      // pending の場合は継続
-      process.stdout.write(".");
-    } catch (_err) {
-      // ネットワークエラーは無視して継続
-      process.stdout.write("x");
-    }
-  }
-
-  console.error("");
-  console.error("❌ 認証がタイムアウトしました（5分）");
-  return false;
-}
 
 /**
  * team_nameからドメインを推測（フォールバック用）
@@ -139,6 +36,208 @@ function extractDomainFromTeamName(teamName) {
     .replace(/[^a-z0-9-]/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+/**
+ * 空いているポートを探す
+ */
+async function findAvailablePort(startPort) {
+  for (let port = startPort; port < startPort + MAX_PORT_ATTEMPTS; port++) {
+    const available = await new Promise((resolve) => {
+      const server = http.createServer();
+      server.once("error", () => resolve(false));
+      server.once("listening", () => {
+        server.close();
+        resolve(true);
+      });
+      server.listen(port, "127.0.0.1");
+    });
+    if (available) return port;
+  }
+  throw new Error(`ポート ${startPort}-${startPort + MAX_PORT_ATTEMPTS - 1} が全て使用中です`);
+}
+
+/**
+ * HTMLレスポンスを生成
+ */
+function htmlResponse(title, message, isError = false) {
+  const icon = isError ? "❌" : "✅";
+  const color = isError ? "#dc3545" : "#28a745";
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h1 { color: ${color}; margin: 0 0 16px 0; }
+    p { color: #666; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">${icon}</div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * ハイブリッド方式でOAuth認証を実行
+ * 1. ローカルサーバーを起動
+ * 2. Worker経由でSlack認証
+ * 3. Workerがトークン交換後、ローカルサーバーにリダイレクト
+ */
+async function startHybridOAuth(options = {}) {
+  const noBrowser = options.noBrowser || false;
+
+  // 空きポートを探す
+  const port = await findAvailablePort(DEFAULT_PORT);
+
+  return new Promise((resolve) => {
+    let server;
+    let timeoutId;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      if (server) {
+        server.close();
+      }
+    };
+
+    server = http.createServer(async (req, res) => {
+      const url = new URL(req.url, `http://localhost:${port}`);
+
+      if (url.pathname === "/callback") {
+        // Workerからリダイレクトされてきたトークン情報を取得
+        const accessToken = url.searchParams.get("access_token");
+        const error = url.searchParams.get("error");
+
+        if (error) {
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(htmlResponse("認証キャンセル", "このウィンドウを閉じてください。", true));
+          console.error("");
+          console.error(`❌ 認証がキャンセルされました: ${error}`);
+          cleanup();
+          resolve(false);
+          return;
+        }
+
+        if (!accessToken) {
+          res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(htmlResponse("エラー", "トークンが取得できませんでした。", true));
+          console.error("");
+          console.error("❌ トークンが取得できませんでした");
+          cleanup();
+          resolve(false);
+          return;
+        }
+
+        // credentials を保存
+        const teamName = url.searchParams.get("team_name") || "Unknown";
+        const teamDomain = url.searchParams.get("team_domain") || extractDomainFromTeamName(teamName);
+        const credentials = {
+          access_token: accessToken,
+          token_type: url.searchParams.get("token_type") || "user",
+          scope: url.searchParams.get("scope") || "",
+          user_id: url.searchParams.get("user_id") || "",
+          team_id: url.searchParams.get("team_id") || "",
+          team_name: teamName,
+          team_domain: teamDomain,
+          created_at: new Date().toISOString(),
+        };
+
+        try {
+          await saveCredentials(credentials);
+
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(htmlResponse(
+            "認証が完了しました！",
+            `ワークスペース: ${credentials.team_name}<br>このウィンドウを閉じてください。`
+          ));
+
+          console.log("");
+          console.log("✅ 認証が完了しました！");
+          console.log(`   ワークスペース: ${credentials.team_name}`);
+          console.log(`   ドメイン: ${credentials.team_domain}.slack.com`);
+          console.log(`   保存先: ${getCredentialsDir()}/${credentials.team_id}.json`);
+
+          cleanup();
+          resolve(true);
+        } catch (err) {
+          res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(htmlResponse("エラー", err.message, true));
+          console.error("");
+          console.error(`❌ 認証情報の保存に失敗: ${err.message}`);
+          cleanup();
+          resolve(false);
+        }
+      } else {
+        res.writeHead(404);
+        res.end("Not Found");
+      }
+    });
+
+    server.listen(port, "127.0.0.1", () => {
+      // Worker の認証 URL を生成
+      const authUrl = `${OAUTH_WORKER_URL}/auth?port=${port}`;
+
+      console.log("🔐 Slack OAuth 認証を開始します...");
+      console.log("");
+
+      if (noBrowser) {
+        console.log("以下の URL をブラウザで開いてください:");
+        console.log("");
+        console.log(authUrl);
+      } else {
+        console.log("ブラウザで Slack ログイン画面を開いています...");
+        open(authUrl).catch(() => {
+          console.log("");
+          console.log("ブラウザを自動で開けませんでした。以下の URL を手動で開いてください:");
+          console.log("");
+          console.log(authUrl);
+        });
+      }
+
+      console.log("");
+      console.log("認証が完了するまで待機中...");
+      console.log(`(コールバック待機: http://localhost:${port})`);
+    });
+
+    // タイムアウト設定
+    timeoutId = setTimeout(() => {
+      console.error("");
+      console.error("❌ 認証がタイムアウトしました（5分）");
+      cleanup();
+      resolve(false);
+    }, AUTH_TIMEOUT);
+  });
+}
+
+/**
+ * OAuth 認証フローを実行
+ */
+export async function authenticate(options = {}) {
+  return startHybridOAuth(options);
 }
 
 /**
