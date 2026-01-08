@@ -2,7 +2,7 @@
   "mcpServers": {
     "slack-task": {
       "command": "node",
-      "args": ["packages/core/src/index.js"],
+      "args": ["src/index.js"],
       "env": {}
     },
     "spec-workflow": {
