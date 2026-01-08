@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "slack-task-mcp": "./src/cli.js"
+    "slack-task-mcp": "src/cli.js"
   },
   "files": [
     "src"

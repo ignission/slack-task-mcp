@@ -77,6 +77,7 @@ export async function getCredentialsByDomain(teamDomain) {
 
   try {
     const files = await fs.readdir(dir);
+    const allCreds = [];
 
     for (const file of files) {
       if (!file.endsWith(".json")) continue;
@@ -85,13 +86,27 @@ export async function getCredentialsByDomain(teamDomain) {
         const filePath = path.join(dir, file);
         const data = await fs.readFile(filePath, "utf-8");
         const creds = JSON.parse(data);
+        allCreds.push(creds);
 
+        // 完全一致
         if (creds.team_domain === teamDomain) {
           return creds;
         }
       } catch {
         // 破損したファイルはスキップ
       }
+    }
+
+    // 部分一致（URLドメインがOAuthドメインを含む、またはその逆）
+    for (const creds of allCreds) {
+      if (teamDomain.includes(creds.team_domain) || creds.team_domain.includes(teamDomain)) {
+        return creds;
+      }
+    }
+
+    // 1つしかない場合はそれを使用
+    if (allCreds.length === 1) {
+      return allCreds[0];
     }
 
     return null;
