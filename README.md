@@ -274,10 +274,23 @@ Mark step 1 as complete
 
 ## ADHD-Friendly Design
 
+- **Offload from your brain** — Save tasks and forget them. Free up working memory.
 - **Break into <5 min steps** — Build small wins
 - **Easiest step first** — Lower the barrier to start
 - **Clear stopping points** — Easy to pause and resume
 - **Slack as context DB** — Ask Claude "what happened with that?"
+
+### The Real Value: Stop Carrying Everything in Your Head
+
+```
+❌ Keeping tasks in your head
+"Don't forget this" + "That too" + "And this..." → Constant working memory drain → Exhaustion
+
+✅ Offload to MCP
+Save task → OK to forget → Brain freed up → Focus on just one thing
+```
+
+Your brain is for thinking, not for storing. Let the tool remember so you don't have to.
 
 ---
 
