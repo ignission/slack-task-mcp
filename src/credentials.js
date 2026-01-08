@@ -15,7 +15,7 @@ export { _getCredentialsDir as getCredentialsDir };
  * 認証情報ディレクトリを初期化
  */
 async function ensureCredentialsDir() {
-  const dir = __getCredentialsDir();
+  const dir = _getCredentialsDir();
   await fs.mkdir(dir, { recursive: true });
   return dir;
 }
