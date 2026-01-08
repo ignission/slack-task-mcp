@@ -1,6 +1,6 @@
 {
   "name": "@ignission/slack-task-mcp",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MCP Server for Slack task management with Claude Code",
   "type": "module",
   "main": "src/index.js",
