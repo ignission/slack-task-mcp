@@ -13,7 +13,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v3
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm test:run
