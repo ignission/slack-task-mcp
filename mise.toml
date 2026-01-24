@@ -1,4 +1,4 @@
 [tools]
-node = "22.21.1"  # LTS
+node = "24.13.0"  # LTS
 pnpm = "10.26.0"
 uv = "0.9.18"
