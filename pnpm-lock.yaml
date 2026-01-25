@@ -10,10 +10,10 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.1.76
-        version: 0.1.76(zod@4.3.5)
+        version: 0.1.76(zod@4.3.6)
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.1
-        version: 1.25.3(hono@4.11.3)(zod@4.3.5)
+        version: 1.25.3(hono@4.11.3)(zod@4.3.6)
       '@slack/web-api':
         specifier: ^7.13.0
         version: 7.13.0
@@ -22,7 +22,7 @@ importers:
         version: 10.2.0
       zod:
         specifier: ^4.2.1
-        version: 4.3.5
+        version: 4.3.6
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.3.11
@@ -1608,11 +1608,27 @@ packages:
   zod@4.3.5:
     resolution: {integrity: sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g==}
 
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
 snapshots:
 
   '@anthropic-ai/claude-agent-sdk@0.1.76(zod@4.3.5)':
     dependencies:
       zod: 4.3.5
+    optionalDependencies:
+      '@img/sharp-darwin-arm64': 0.33.5
+      '@img/sharp-darwin-x64': 0.33.5
+      '@img/sharp-linux-arm': 0.33.5
+      '@img/sharp-linux-arm64': 0.33.5
+      '@img/sharp-linux-x64': 0.33.5
+      '@img/sharp-linuxmusl-arm64': 0.33.5
+      '@img/sharp-linuxmusl-x64': 0.33.5
+      '@img/sharp-win32-x64': 0.33.5
+
+  '@anthropic-ai/claude-agent-sdk@0.1.76(zod@4.3.6)':
+    dependencies:
+      zod: 4.3.6
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.33.5
       '@img/sharp-darwin-x64': 0.33.5
@@ -1962,7 +1978,7 @@ snapshots:
       - hono
       - supports-color
 
-  '@modelcontextprotocol/sdk@1.25.3(hono@4.11.3)(zod@4.3.5)':
+  '@modelcontextprotocol/sdk@1.25.3(hono@4.11.3)(zod@4.3.6)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.11.3)
       ajv: 8.17.1
@@ -1978,8 +1994,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.3.5
-      zod-to-json-schema: 3.25.1(zod@4.3.5)
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.1(zod@4.3.6)
     transitivePeerDependencies:
       - hono
       - supports-color
@@ -2971,6 +2987,12 @@ snapshots:
     dependencies:
       zod: 4.3.5
 
+  zod-to-json-schema@3.25.1(zod@4.3.6):
+    dependencies:
+      zod: 4.3.6
+
   zod@3.22.3: {}
 
   zod@4.3.5: {}
+
+  zod@4.3.6: {}
