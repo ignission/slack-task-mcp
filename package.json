@@ -30,7 +30,7 @@
   ],
   "author": "Ignission G.K.",
   "license": "MIT",
-  "packageManager": "pnpm@10.26.0",
+  "packageManager": "pnpm@10.28.1",
   "scripts": {
     "lint": "biome lint .",
     "format": "biome format --write .",
